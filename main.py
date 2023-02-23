@@ -34,6 +34,8 @@ if __name__ == "__main__":
         callbacks=[early_stopping_callback, checkpoint_callback],
         max_epochs=10,
         gpus=1,
-        fast_dev_run=False
+        fast_dev_run=False,
+        accelerator="gpu",
+        devices=1
     )
     trainer.fit(bert_model, data_module)
