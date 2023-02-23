@@ -1,0 +1,6 @@
+lightning-transformers
+nltk
+pip-chill
+scikit-learn
+seaborn
+tensorboard
