@@ -35,7 +35,6 @@ class MavenMultiLabelClassificationDataset(Dataset):
             multihot_vectors.append([1 if x in label_list else 0 for x in label_set])
 
         # To keep track of which columns are which, set dtype to None and...
-        # import pandas as pd
         if dtype is None:
             return pd.DataFrame(multihot_vectors, columns=label_set)
         return torch.Tensor(multihot_vectors).to(dtype)
@@ -73,14 +72,7 @@ class MavenDataModule(pl.LightningDataModule):
         valid_set_size = len(self.train) - train_set_size
         self.train, self.validate = random_split(self.train, [train_set_size, valid_set_size])
 
-    # define your dataloaders
-    # again, here defined for train, validate and test, not for predict as the project is not there yet.
     def train_dataloader(self):
-        # self.train = self.train.map(
-        #     self.convert_to_features,
-        #     batched=True,
-        #     remove_columns=["label"],
-        # )
         return DataLoader(self.train, batch_size=32, num_workers=8)
 
     def val_dataloader(self):
@@ -88,16 +80,3 @@ class MavenDataModule(pl.LightningDataModule):
 
     def test_dataloader(self):
         return DataLoader(self.test, batch_size=32, num_workers=8)
-
-    # def convert_to_features(self, example_batch, indices=None):
-    #     texts_or_text_pairs = example_batch[self.text_fields[0]]
-    #
-    #     # Tokenize the text/text pairs
-    #     features = self.tokenizer.batch_encode_plus(
-    #         texts_or_text_pairs, max_length=self.max_seq_length, pad_to_max_length=True, truncation=True
-    #     )
-    #
-    #     # Rename label to labels to make it easier to pass to model forward
-    #     features["labels"] = example_batch["label"]
-    #
-    #     return features

@@ -1,9 +1,5 @@
 import pytorch_lightning as pl
 from data_loader import MavenDataModule
-from transformers import BertTokenizerFast as BertTokenizer, AdamW, get_linear_schedule_with_warmup
-from lightning_transformers.task.nlp.text_classification import (
-    TextClassificationTransformer,
-)
 from pytorch_lightning.callbacks import ModelCheckpoint, EarlyStopping
 from pytorch_lightning.loggers import TensorBoardLogger
 from models.multi_label_classifier import MavenModel
@@ -33,9 +29,8 @@ if __name__ == "__main__":
         logger=logger,
         callbacks=[early_stopping_callback, checkpoint_callback],
         max_epochs=10,
-        gpus=1,
-        fast_dev_run=False,
-        accelerator="gpu",
-        devices=1
+        gpus=[1],
+        benchmark=True,
+        fast_dev_run=False
     )
     trainer.fit(bert_model, data_module)
