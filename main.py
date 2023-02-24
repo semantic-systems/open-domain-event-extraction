@@ -23,14 +23,15 @@ if __name__ == "__main__":
         mode="min"
     )
     logger = TensorBoardLogger("lightning_logs", name="maven")
-    early_stopping_callback = EarlyStopping(monitor='val_loss', patience=2)
+    early_stopping_callback = EarlyStopping(monitor='val_loss', patience=10)
 
     trainer = pl.Trainer(
         logger=logger,
         callbacks=[early_stopping_callback, checkpoint_callback],
-        max_epochs=10,
+        max_epochs=100,
         gpus=[1],
         benchmark=True,
         fast_dev_run=False
     )
     trainer.fit(bert_model, data_module)
+    trainer.test(datamodule=data_module)

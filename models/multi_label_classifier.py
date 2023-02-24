@@ -68,9 +68,9 @@ class MavenModel(pl.LightningModule):
             num_training_steps=self.n_training_steps
         )
         return dict(
-            optimizer=optimizer,
-            lr_scheduler=dict(
-                scheduler=scheduler,
-                interval='step'
-            )
+            optimizer=optimizer#,
+            # lr_scheduler=dict(
+            #     scheduler=scheduler,
+            #     interval='step'
+            # )
         )
