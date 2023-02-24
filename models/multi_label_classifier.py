@@ -28,14 +28,14 @@ class MavenModel(pl.LightningModule):
     def training_step(self, batch, batch_idx):
         sentences, labels = batch
         features = self.tokenizer.batch_encode_plus(sentences, pad_to_max_length=True, truncation=True, return_attention_mask=True, return_tensors='pt', return_token_type_ids=False)
-        loss, outputs = self(features["input_ids"], features["attention_mask"], labels)
+        loss, outputs = self(features["input_ids"].to(device=self.device), features["attention_mask"].to(device=self.device), labels.to(device=self.device))
         self.log("train_loss", loss, prog_bar=True, logger=True)
         return {"loss": loss, "predictions": outputs, "labels": labels}
 
     def validation_step(self, batch, batch_idx):
         sentences, labels = batch
         features = self.tokenizer.batch_encode_plus(sentences, pad_to_max_length=True, truncation=True, return_attention_mask=True, return_tensors='pt', return_token_type_ids=False)
-        loss, outputs = self(features["input_ids"], features["attention_mask"], labels)
+        loss, outputs = self(features["input_ids"].to(device=self.device), features["attention_mask"].to(device=self.device), labels.to(device=self.device))
         self.log("val_loss", loss, prog_bar=True, logger=True)
         return loss
 
