@@ -14,11 +14,11 @@ class MavenModel(pl.LightningModule):
         self.n_training_steps = n_training_steps
         self.n_warmup_steps = n_warmup_steps
         self.criterion = nn.BCELoss()
-        self.auroc = torchmetrics.AUROC(task="multilabel", num_labels=169)
-        self.accuracy = torchmetrics.Accuracy(task="multilabel", num_labels=169)
-        self.preci = torchmetrics.Precision(task="multilabel", average='macro', num_labels=169)
-        self.recall = torchmetrics.Recall(task="multilabel", average='macro', num_labels=169)
-        self.f1 = torchmetrics.F1Score(task="multilabel", average='macro', num_labels=169)
+        self.auroc = torchmetrics.AUROC(task="multilabel", num_labels=169).to(self.device)
+        self.accuracy = torchmetrics.Accuracy(task="multilabel", num_labels=169).to(self.device)
+        self.preci = torchmetrics.Precision(task="multilabel", average='macro', num_labels=169).to(self.device)
+        self.recall = torchmetrics.Recall(task="multilabel", average='macro', num_labels=169).to(self.device)
+        self.f1 = torchmetrics.F1Score(task="multilabel", average='macro', num_labels=169).to(self.device)
 
     def forward(self, input_ids, attention_mask, labels=None):
         output = self.bert(input_ids, attention_mask=attention_mask)
