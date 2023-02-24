@@ -76,20 +76,20 @@ class MavenModel(pl.LightningModule):
         self.logger.experiment.add_scalar(f"roc_auc/Train", class_roc_auc, self.current_epoch)
 
 
-    def validation_epoch_end(self, outputs):
-        class_roc_auc, acc, preci, recall, f1 = self.evaluate(outputs)
-        self.log("acc", acc, prog_bar=True, logger=True)
-        self.log("preci", preci, prog_bar=True, logger=True)
-        self.log("recall", recall, prog_bar=True, logger=True)
-        self.log("f1", f1, prog_bar=True, logger=True)
+    # def validation_epoch_end(self, outputs):
+    #     class_roc_auc, acc, preci, recall, f1 = self.evaluate(outputs)
+    #     self.log("acc", acc, prog_bar=True, logger=True)
+    #     self.log("preci", preci, prog_bar=True, logger=True)
+    #     self.log("recall", recall, prog_bar=True, logger=True)
+    #     self.log("f1", f1, prog_bar=True, logger=True)
         # self.logger.experiment.add_scalar(f"roc_auc/Train", class_roc_auc, self.current_epoch)
 
-    def test_epoch_end(self, outputs):
-        class_roc_auc, acc, preci, recall, f1 = self.evaluate(outputs)
-        self.log("acc", acc, prog_bar=True, logger=True)
-        self.log("preci", preci, prog_bar=True, logger=True)
-        self.log("recall", recall, prog_bar=True, logger=True)
-        self.log("f1", f1, prog_bar=True, logger=True)
+    # def test_epoch_end(self, outputs):
+    #     class_roc_auc, acc, preci, recall, f1 = self.evaluate(outputs)
+    #     self.log("acc", acc, prog_bar=True, logger=True)
+    #     self.log("preci", preci, prog_bar=True, logger=True)
+    #     self.log("recall", recall, prog_bar=True, logger=True)
+    #     self.log("f1", f1, prog_bar=True, logger=True)
         # self.logger.experiment.add_scalar(f"roc_auc/Train", class_roc_auc, self.current_epoch)
 
     def configure_optimizers(self):
