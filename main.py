@@ -29,7 +29,7 @@ if __name__ == "__main__":
         logger=logger,
         callbacks=[early_stopping_callback, checkpoint_callback],
         max_epochs=100,
-        # gpus=[1],
+        gpus=[0],
         fast_dev_run=False
     )
     trainer.fit(bert_model, datamodule=data_module)

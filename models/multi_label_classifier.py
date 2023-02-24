@@ -32,15 +32,16 @@ class MavenModel(pl.LightningModule):
     def training_step(self, batch, batch_idx):
         sentences, labels = batch
         features = self.tokenizer.batch_encode_plus(sentences, padding='max_length', truncation=True, return_attention_mask=True, return_tensors='pt', return_token_type_ids=False)
-        loss, outputs = self(features["input_ids"].to(device=self.device), features["attention_mask"].to(device=self.device), labels.to(device=self.device))
+        loss, outputs = self.forward(features["input_ids"].to(device=self.device), features["attention_mask"].to(device=self.device), labels.to(device=self.device))
         self.log("train_loss", loss, prog_bar=True, logger=True)
         return {"loss": loss, "predictions": outputs, "labels": labels}
 
     def validation_step(self, batch, batch_idx):
         sentences, labels = batch
         features = self.tokenizer.batch_encode_plus(sentences, padding='max_length', truncation=True, return_attention_mask=True, return_tensors='pt', return_token_type_ids=False)
-        loss, outputs = self(features["input_ids"].to(device=self.device), features["attention_mask"].to(device=self.device), labels.to(device=self.device))
-        self.log("val_loss", loss, prog_bar=True, logger=True)
+        loss, outputs = self.forward(features["input_ids"].to(device=self.device), features["attention_mask"].to(device=self.device), labels.to(device=self.device))
+        # print("val_loss", loss)
+        # self.log("val_loss", loss, prog_bar=True, logger=True)
         class_roc_auc, acc, preci, recall, f1 = self.evaluate(outputs)
         self.log("acc", acc, prog_bar=True, logger=True)
         self.log("preci", preci, prog_bar=True, logger=True)
@@ -51,8 +52,8 @@ class MavenModel(pl.LightningModule):
     def test_step(self, batch, batch_idx):
         sentences, labels = batch
         features = self.tokenizer.batch_encode_plus(sentences, padding='max_length', truncation=True, return_attention_mask=True, return_tensors='pt', return_token_type_ids=False)
-        loss, outputs = self(features["input_ids"].to(device=self.device), features["attention_mask"].to(device=self.device), labels.to(device=self.device))
-        self.log("test_loss", loss, prog_bar=True, logger=True)
+        loss, outputs = self.forward(features["input_ids"].to(device=self.device), features["attention_mask"].to(device=self.device), labels.to(device=self.device))
+        # self.log("test_loss", loss, prog_bar=True, logger=True)
         class_roc_auc, acc, preci, recall, f1 = self.evaluate(outputs)
         self.log("acc", acc, prog_bar=True, logger=True)
         self.log("preci", preci, prog_bar=True, logger=True)
@@ -70,7 +71,6 @@ class MavenModel(pl.LightningModule):
                 predictions.append(out_predictions)
         labels = torch.stack(labels).int()
         predictions = torch.stack(predictions)
-        # for i, name in enumerate(range(169)):
         class_roc_auc = self.auroc(predictions, labels)
         acc = self.accuracy(predictions, labels)
         preci = self.preci(predictions, labels)
