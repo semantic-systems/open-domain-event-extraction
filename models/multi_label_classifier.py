@@ -27,7 +27,7 @@ class MavenModel(pl.LightningModule):
         loss = 0
         if labels is not None:
             loss = self.criterion(output, labels)
-        return {"loss": loss, "predictions": output}
+        return loss, output
 
     def training_step(self, batch, batch_idx):
         sentences, labels = batch
