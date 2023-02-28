@@ -54,9 +54,9 @@ class MavenModel(pl.LightningModule):
         labels = []
         predictions = []
         for output in outputs:
-            for out_labels in output["labels"]#.detach().cpu():
+            for out_labels in output["labels"]:#.detach().cpu():
                 labels.append(out_labels)
-            for out_predictions in output["predictions"]#.detach().cpu():
+            for out_predictions in output["predictions"]:#.detach().cpu():
                 predictions.append(out_predictions)
         labels = torch.stack(labels).int()
         predictions = torch.stack(predictions)
