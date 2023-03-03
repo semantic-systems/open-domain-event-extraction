@@ -41,14 +41,14 @@ class MavenModel(pl.LightningModule):
         features = self.tokenizer.batch_encode_plus(sentences, padding='max_length', truncation=True, return_attention_mask=True, return_tensors='pt', return_token_type_ids=False)
         loss, outputs  = self.forward(features["input_ids"].to(device=self.device), features["attention_mask"].to(device=self.device), labels.to(device=self.device))
         self.log("val_loss", loss, prog_bar=True, logger=True)
-        return loss
+        return {"loss": loss, "predictions": outputs, "labels": labels}
 
     def test_step(self, batch, batch_idx):
         sentences, labels = batch
         features = self.tokenizer.batch_encode_plus(sentences, padding='max_length', truncation=True, return_attention_mask=True, return_tensors='pt', return_token_type_ids=False)
         loss, outputs = self.forward(features["input_ids"].to(device=self.device), features["attention_mask"].to(device=self.device), labels.to(device=self.device))
         self.log("test_loss", loss, prog_bar=True, logger=True)
-        return loss
+        return {"loss": loss, "predictions": outputs, "labels": labels}
 
     def evaluate(self, outputs):
         labels = []
@@ -65,15 +65,20 @@ class MavenModel(pl.LightningModule):
         preci = self.preci(predictions, labels)
         recall = self.recall(predictions, labels)
         f1 = self.f1(predictions, labels)
+        self.log("acc", acc, prog_bar=True, logger=True, on_epoch=True)
+        self.log("preci", preci, prog_bar=True, logger=True, on_epoch=True)
+        self.log("recall", recall, prog_bar=True, logger=True, on_epoch=True)
+        self.log("f1", f1, prog_bar=True, logger=True, on_epoch=True)
+        self.log(f"roc_auc", class_roc_auc, prog_bar=True, logger=True, on_epoch=True)
         return class_roc_auc, acc, preci, recall, f1
 
-    def training_epoch_end(self, outputs):
-        class_roc_auc, acc, preci, recall, f1 = self.evaluate(outputs)
-        self.log("acc", acc, prog_bar=True, logger=True)
-        self.log("preci", preci, prog_bar=True, logger=True)
-        self.log("recall", recall, prog_bar=True, logger=True)
-        self.log("f1", f1, prog_bar=True, logger=True)
-        self.logger.experiment.add_scalar(f"roc_auc/Train", class_roc_auc, self.current_epoch)
+    # def training_epoch_end(self, outputs):
+    #     self.evaluate(outputs)
+    #     self.log("acc", acc, prog_bar=True, logger=True, on_epoch=True)
+    #     self.log("preci", preci, prog_bar=True, logger=True, on_epoch=True)
+    #     self.log("recall", recall, prog_bar=True, logger=True, on_epoch=True)
+    #     self.log("f1", f1, prog_bar=True, logger=True, on_epoch=True)
+    #     self.log(f"roc_auc", class_roc_auc, prog_bar=True, logger=True, on_epoch=True)
 
     # def validation_epoch_end(self, outputs):
     #     class_roc_auc, acc, preci, recall, f1 = self.evaluate(outputs)

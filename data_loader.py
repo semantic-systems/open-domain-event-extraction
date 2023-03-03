@@ -71,6 +71,7 @@ class MavenDataModule(pl.LightningDataModule):
         train_set_size = int(len(self.train) * 0.8)
         valid_set_size = len(self.train) - train_set_size
         self.train, self.validate = random_split(self.train, [train_set_size, valid_set_size])
+        self.train, _ = random_split(self.train, [0.1, 0.9])
 
     def train_dataloader(self):
         return DataLoader(self.train, batch_size=32, num_workers=8)

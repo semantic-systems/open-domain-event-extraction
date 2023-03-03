@@ -30,7 +30,8 @@ if __name__ == "__main__":
         callbacks=[early_stopping_callback, checkpoint_callback],
         max_epochs=100,
         gpus=[0],
-        fast_dev_run=False
+        fast_dev_run=True
     )
     trainer.fit(bert_model, datamodule=data_module)
     trainer.test(datamodule=data_module)
+
