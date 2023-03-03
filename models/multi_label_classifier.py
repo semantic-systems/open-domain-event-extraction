@@ -72,29 +72,29 @@ class MavenModel(pl.LightningModule):
         self.log(f"roc_auc", class_roc_auc, prog_bar=True, logger=True, on_epoch=True)
         return class_roc_auc, acc, preci, recall, f1
 
-    # def training_epoch_end(self, outputs):
-    #     self.evaluate(outputs)
-    #     self.log("acc", acc, prog_bar=True, logger=True, on_epoch=True)
-    #     self.log("preci", preci, prog_bar=True, logger=True, on_epoch=True)
-    #     self.log("recall", recall, prog_bar=True, logger=True, on_epoch=True)
-    #     self.log("f1", f1, prog_bar=True, logger=True, on_epoch=True)
-    #     self.log(f"roc_auc", class_roc_auc, prog_bar=True, logger=True, on_epoch=True)
+    def training_epoch_end(self, outputs):
+        class_roc_auc, acc, preci, recall, f1 = self.evaluate(outputs)
+        self.log("acc", acc, prog_bar=True, logger=True, on_epoch=True)
+        self.log("preci", preci, prog_bar=True, logger=True, on_epoch=True)
+        self.log("recall", recall, prog_bar=True, logger=True, on_epoch=True)
+        self.log("f1", f1, prog_bar=True, logger=True, on_epoch=True)
+        self.log(f"roc_auc", class_roc_auc, prog_bar=True, logger=True, on_epoch=True)
 
-    # def validation_epoch_end(self, outputs):
-    #     class_roc_auc, acc, preci, recall, f1 = self.evaluate(outputs)
-    #     self.log("acc", acc, prog_bar=True, logger=True)
-    #     self.log("preci", preci, prog_bar=True, logger=True)
-    #     self.log("recall", recall, prog_bar=True, logger=True)
-    #     self.log("f1", f1, prog_bar=True, logger=True)
-    #     self.logger.experiment.add_scalar(f"roc_auc/Train", class_roc_auc, self.current_epoch)
-    #
-    # def test_epoch_end(self, outputs):
-    #     class_roc_auc, acc, preci, recall, f1 = self.evaluate(outputs)
-    #     self.log("acc", acc, prog_bar=True, logger=True)
-    #     self.log("preci", preci, prog_bar=True, logger=True)
-    #     self.log("recall", recall, prog_bar=True, logger=True)
-    #     self.log("f1", f1, prog_bar=True, logger=True)
-    #     self.logger.experiment.add_scalar(f"roc_auc/Train", class_roc_auc, self.current_epoch)
+    def validation_epoch_end(self, outputs):
+        class_roc_auc, acc, preci, recall, f1 = self.evaluate(outputs)
+        self.log("acc", acc, prog_bar=True, logger=True)
+        self.log("preci", preci, prog_bar=True, logger=True)
+        self.log("recall", recall, prog_bar=True, logger=True)
+        self.log("f1", f1, prog_bar=True, logger=True)
+        # self.logger.experiment.add_scalar(f"roc_auc/Train", class_roc_auc, self.current_epoch)
+
+    def test_epoch_end(self, outputs):
+        class_roc_auc, acc, preci, recall, f1 = self.evaluate(outputs)
+        self.log("acc", acc, prog_bar=True, logger=True)
+        self.log("preci", preci, prog_bar=True, logger=True)
+        self.log("recall", recall, prog_bar=True, logger=True)
+        self.log("f1", f1, prog_bar=True, logger=True)
+        # self.logger.experiment.add_scalar(f"roc_auc/Train", class_roc_auc, self.current_epoch)
 
     def configure_optimizers(self):
         optimizer = AdamW(self.parameters(), lr=1e-4)
