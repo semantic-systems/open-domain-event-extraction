@@ -1,3 +1,5 @@
+*.out
+checkpoints/
 lightning_logs/
 tables/
 nohup/

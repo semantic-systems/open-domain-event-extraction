@@ -3,6 +3,7 @@ from transformers import BertModel, AdamW, get_linear_schedule_with_warmup, Bert
 import torch
 import torch.nn as nn
 import torchmetrics
+import json
 
 
 class MavenModel(pl.LightningModule):
@@ -39,16 +40,18 @@ class MavenModel(pl.LightningModule):
     def validation_step(self, batch, batch_idx):
         sentences, labels = batch
         features = self.tokenizer.batch_encode_plus(sentences, padding='max_length', truncation=True, return_attention_mask=True, return_tensors='pt', return_token_type_ids=False)
-        loss, outputs  = self.forward(features["input_ids"].to(device=self.device), features["attention_mask"].to(device=self.device), labels.to(device=self.device))
+        loss, outputs = self.forward(features["input_ids"].to(device=self.device), features["attention_mask"].to(device=self.device), labels.to(device=self.device))
         self.log("val_loss", loss, prog_bar=True, logger=True)
-        return {"loss": loss, "predictions": outputs, "labels": labels}
+        prediction_int = torch.as_tensor((outputs - 0.5) > 0, dtype=torch.int32)
+        return {"loss": loss, "predictions": outputs, "labels": labels, "prediction_int": prediction_int}
 
     def test_step(self, batch, batch_idx):
         sentences, labels = batch
         features = self.tokenizer.batch_encode_plus(sentences, padding='max_length', truncation=True, return_attention_mask=True, return_tensors='pt', return_token_type_ids=False)
         loss, outputs = self.forward(features["input_ids"].to(device=self.device), features["attention_mask"].to(device=self.device), labels.to(device=self.device))
         self.log("test_loss", loss, prog_bar=True, logger=True)
-        return {"loss": loss, "predictions": outputs, "labels": labels}
+        prediction_int = torch.as_tensor((outputs - 0.5) > 0, dtype=torch.int32)
+        return {"loss": loss, "predictions": outputs, "labels": labels, "prediction_int": prediction_int}
 
     def evaluate(self, outputs):
         labels = []
@@ -65,36 +68,52 @@ class MavenModel(pl.LightningModule):
         preci = self.preci(predictions, labels)
         recall = self.recall(predictions, labels)
         f1 = self.f1(predictions, labels)
-        self.log("acc", acc, prog_bar=True, logger=True, on_epoch=True)
-        self.log("preci", preci, prog_bar=True, logger=True, on_epoch=True)
-        self.log("recall", recall, prog_bar=True, logger=True, on_epoch=True)
-        self.log("f1", f1, prog_bar=True, logger=True, on_epoch=True)
-        self.log(f"roc_auc", class_roc_auc, prog_bar=True, logger=True, on_epoch=True)
         return class_roc_auc, acc, preci, recall, f1
 
     def training_epoch_end(self, outputs):
         class_roc_auc, acc, preci, recall, f1 = self.evaluate(outputs)
-        self.log("acc", acc, prog_bar=True, logger=True, on_epoch=True)
-        self.log("preci", preci, prog_bar=True, logger=True, on_epoch=True)
-        self.log("recall", recall, prog_bar=True, logger=True, on_epoch=True)
-        self.log("f1", f1, prog_bar=True, logger=True, on_epoch=True)
-        self.log(f"roc_auc", class_roc_auc, prog_bar=True, logger=True, on_epoch=True)
+        self.log("train/acc", acc, prog_bar=True, logger=True, on_epoch=True)
+        self.log("train/preci", preci, prog_bar=True, logger=True, on_epoch=True)
+        self.log("train/recall", recall, prog_bar=True, logger=True, on_epoch=True)
+        self.log("train/f1", f1, prog_bar=True, logger=True, on_epoch=True)
+        self.log(f"train/roc_auc", class_roc_auc, prog_bar=True, logger=True, on_epoch=True)
 
     def validation_epoch_end(self, outputs):
         class_roc_auc, acc, preci, recall, f1 = self.evaluate(outputs)
-        self.log("acc", acc, prog_bar=True, logger=True)
-        self.log("preci", preci, prog_bar=True, logger=True)
-        self.log("recall", recall, prog_bar=True, logger=True)
-        self.log("f1", f1, prog_bar=True, logger=True)
-        # self.logger.experiment.add_scalar(f"roc_auc/Train", class_roc_auc, self.current_epoch)
+        self.log("valid/acc", acc, prog_bar=True, logger=True)
+        self.log("valid/preci", preci, prog_bar=True, logger=True)
+        self.log("valid/recall", recall, prog_bar=True, logger=True)
+        self.log("valid/f1", f1, prog_bar=True, logger=True)
+        self.log(f"train/roc_auc", class_roc_auc, prog_bar=True, logger=True, on_epoch=True)
+        self.get_event_type(outputs)
 
     def test_epoch_end(self, outputs):
         class_roc_auc, acc, preci, recall, f1 = self.evaluate(outputs)
-        self.log("acc", acc, prog_bar=True, logger=True)
-        self.log("preci", preci, prog_bar=True, logger=True)
-        self.log("recall", recall, prog_bar=True, logger=True)
-        self.log("f1", f1, prog_bar=True, logger=True)
-        # self.logger.experiment.add_scalar(f"roc_auc/Train", class_roc_auc, self.current_epoch)
+        self.log("test/acc", acc, prog_bar=True, logger=True)
+        self.log("test/preci", preci, prog_bar=True, logger=True)
+        self.log("test/recall", recall, prog_bar=True, logger=True)
+        self.log("test/f1", f1, prog_bar=True, logger=True)
+        self.log(f"train/roc_auc", class_roc_auc, prog_bar=True, logger=True, on_epoch=True)
+        self.get_event_type(outputs)
+
+    def get_event_type(self, outputs):
+        label_map_file = "./index_label_map.json"
+        with open(label_map_file, 'r') as f:
+            index_label_map = json.load(f)
+        labels_indices = [(output["prediction_int"] == 1).nonzero(as_tuple=False) for output in outputs]
+        predicted_event_type = []
+        for label_index in labels_indices:
+            if not label_index.numel():
+                event_type = ["non_event"]
+                predicted_event_type.append(event_type)
+            else:
+                for indices in label_index.detach():
+                    event_type = []
+                    for i in indices:
+                        # print(f"i {i}")
+                        event_type.append(index_label_map[str(i.item())])
+                    predicted_event_type.append(event_type)
+        print("predicted_event_type", predicted_event_type)
 
     def configure_optimizers(self):
         optimizer = AdamW(self.parameters(), lr=1e-4)

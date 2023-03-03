@@ -1,3 +1,5 @@
+from pathlib import Path
+import json
 from torch.utils.data import random_split, DataLoader, Dataset
 import pytorch_lightning as pl
 import torch
@@ -29,6 +31,7 @@ class MavenMultiLabelClassificationDataset(Dataset):
         for label_list in labels:
             label_set = label_set.union(set(label_list))
         label_set = sorted(label_set)
+        label_map = {i: label for i, label in enumerate(label_set)}
 
         multihot_vectors = []
         for label_list in labels:
@@ -37,6 +40,12 @@ class MavenMultiLabelClassificationDataset(Dataset):
         # To keep track of which columns are which, set dtype to None and...
         if dtype is None:
             return pd.DataFrame(multihot_vectors, columns=label_set)
+
+        label_map_file = "./index_label_map.json"
+        if not Path(label_map_file).exists():
+            with open(label_map_file, 'w') as f:
+                json.dump(label_map, f)
+
         return torch.Tensor(multihot_vectors).to(dtype)
 
     # This returns the total amount of samples in your Dataset
@@ -71,7 +80,7 @@ class MavenDataModule(pl.LightningDataModule):
         train_set_size = int(len(self.train) * 0.8)
         valid_set_size = len(self.train) - train_set_size
         self.train, self.validate = random_split(self.train, [train_set_size, valid_set_size])
-        self.train, _ = random_split(self.train, [0.1, 0.9])
+        # self.train, _ = random_split(self.train, [0.05, 0.95])
 
     def train_dataloader(self):
         return DataLoader(self.train, batch_size=32, num_workers=8)
