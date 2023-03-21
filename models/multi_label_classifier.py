@@ -41,7 +41,7 @@ class MavenModel(pl.LightningModule):
             self.log("train/contrastive loss", contrastive_loss)
             if labels is not None:
                 loss = self.loss(output, labels)
-            return loss + contrastive_loss, output
+            return loss + 0.5*contrastive_loss, output
         else:
             output = self.lm(input_ids, attention_mask=attention_mask)
             output = self.classifier(output.pooler_output)
