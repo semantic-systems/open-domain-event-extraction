@@ -27,7 +27,7 @@ if __name__ == "__main__":
         monitor="val_loss",
         mode="min"
     )
-    logger = WandbLogger(project="maven", name="playful morning")
+    logger = WandbLogger(project="maven", name="multilabel contrastive loss")
     early_stopping_callback = EarlyStopping(monitor='val_loss', patience=10)
 
     trainer = pl.Trainer(
@@ -39,6 +39,6 @@ if __name__ == "__main__":
         fast_dev_run=False
     )
     trainer.fit(bert_model, datamodule=data_module)
-    test_result = trainer.test(datamodule=data_module, ckpt_path='last')
+    test_result = trainer.test(datamodule=data_module, ckpt_path='best')
     wandb.finish()
     torch.cuda.empty_cache()

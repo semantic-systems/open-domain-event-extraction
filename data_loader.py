@@ -84,7 +84,7 @@ class MavenDataModule(pl.LightningDataModule):
         # self.train, _ = random_split(self.train, [0.05, 0.95])
 
     def train_dataloader(self):
-        return DataLoader(self.train, batch_size=32, num_workers=8)
+        return DataLoader(self.train, batch_size=8, num_workers=8)
 
     def val_dataloader(self):
         return DataLoader(self.validate, batch_size=32, num_workers=8)

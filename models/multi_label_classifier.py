@@ -5,17 +5,22 @@ import torch.nn as nn
 import torchmetrics
 import json
 import wandb
+from losses import HMLC
+
+
+NUM_AUGMENTATION = 1
 
 
 class MavenModel(pl.LightningModule):
     def __init__(self, n_classes: int, pretrained_model_name_or_path: str, n_training_steps=None, n_warmup_steps=None):
         super().__init__()
-        self.bert = RobertaModel.from_pretrained(pretrained_model_name_or_path, return_dict=True)
+        self.lm = RobertaModel.from_pretrained(pretrained_model_name_or_path, return_dict=True)
         self.tokenizer = RobertaTokenizer.from_pretrained(pretrained_model_name_or_path)
-        self.classifier = nn.Linear(self.bert.config.hidden_size, n_classes)
+        self.classifier = nn.Linear(self.lm.config.hidden_size, n_classes)
         self.n_training_steps = n_training_steps
         self.n_warmup_steps = n_warmup_steps
-        self.criterion = nn.BCELoss()
+        self.loss = nn.BCELoss()
+        self.contrastive_loss = HMLC()
         self.auroc = torchmetrics.AUROC(task="multilabel", num_labels=169).to(self.device)
         self.accuracy = torchmetrics.classification.MultilabelAccuracy(num_labels=169).to(self.device)
         self.preci = torchmetrics.classification.MultilabelPrecision(num_labels=169).to(self.device)
@@ -24,18 +29,55 @@ class MavenModel(pl.LightningModule):
         self.column = ["sentences", "predictions", "labels"]
         self.test_table = wandb.Table(columns=["sentences", "predictions", "labels"])
         self.validation_table = wandb.Table(columns=["sentences", "predictions", "labels"])
+        self.save_hyperparameters()
 
-    def forward(self, input_ids, attention_mask, labels=None):
-        output = self.bert(input_ids, attention_mask=attention_mask)
-        output = self.classifier(output.pooler_output)
-        output = torch.sigmoid(output)
-        loss = 0
-        if labels is not None:
-            loss = self.criterion(output, labels)
-        return loss, output
+    def forward(self, input_ids, attention_mask, labels=None, is_training=True, is_contrastive=True):
+        if is_contrastive and is_training:
+            loss = 0
+            logits = self.classifier(self.lm(input_ids=input_ids, attention_mask=attention_mask).pooler_output)
+            output = torch.sigmoid(logits)
+            multiview_sentences, multiview_labels = self.get_multiview_batch(logits, labels)
+            contrastive_loss = self.contrastive_loss(multiview_sentences, multiview_labels)
+            self.log("train/contrastive loss", contrastive_loss)
+            if labels is not None:
+                loss = self.loss(output, labels)
+            return loss + contrastive_loss, output
+        else:
+            output = self.lm(input_ids, attention_mask=attention_mask)
+            output = self.classifier(output.pooler_output)
+            output = torch.sigmoid(output)
+            loss = 0
+            if labels is not None:
+                loss = self.loss(output, labels)
+            return loss, output
+
+    def get_multiview_batch(self, features, labels, dummy=False):
+        # no augmentation
+        if dummy:
+            contrastive_features = features[:, None, :]
+            contrastive_labels = labels
+        else:
+            multiview_shape = (
+                int(features.shape[0] / (NUM_AUGMENTATION + 1)),
+                NUM_AUGMENTATION + 1,
+                features.shape[-1]
+            )
+            contrastive_features = features.reshape(multiview_shape)
+            contrastive_labels = labels[:int(features.shape[0]/(NUM_AUGMENTATION+1))]
+        return contrastive_features, contrastive_labels
+
+    def augment(self, batch, num_return_sequences: int = NUM_AUGMENTATION):
+        augmented_text = []
+        sentences, labels = batch
+        sentences = list(sentences)
+        for n in range(num_return_sequences+1):
+            augmented_text.extend(sentences)
+        # label need to repeat n times + the original copy
+        augmented_label = labels.repeat(num_return_sequences + 1, 1)
+        return augmented_text, augmented_label
 
     def training_step(self, batch, batch_idx):
-        sentences, labels = batch
+        sentences, labels = self.augment(batch)
         features = self.tokenizer.batch_encode_plus(sentences, padding='max_length', truncation=True, return_attention_mask=True, return_tensors='pt', return_token_type_ids=False)
         loss, outputs = self.forward(features["input_ids"].to(device=self.device), features["attention_mask"].to(device=self.device), labels.to(device=self.device))
         self.log("train_loss", loss, prog_bar=True, logger=True)
@@ -44,7 +86,7 @@ class MavenModel(pl.LightningModule):
     def validation_step(self, batch, batch_idx):
         sentences, labels = batch
         features = self.tokenizer.batch_encode_plus(sentences, padding='max_length', truncation=True, return_attention_mask=True, return_tensors='pt', return_token_type_ids=False)
-        loss, outputs = self.forward(features["input_ids"].to(device=self.device), features["attention_mask"].to(device=self.device), labels.to(device=self.device))
+        loss, outputs = self.forward(features["input_ids"].to(device=self.device), features["attention_mask"].to(device=self.device), labels.to(device=self.device), is_training=False, is_contrastive=False)
         self.log("val_loss", loss, prog_bar=True, logger=True)
         prediction_int = torch.as_tensor((outputs - 0.5) > 0, dtype=torch.int32)
         prediction_str = self.get_event_type(prediction_int)
@@ -56,13 +98,10 @@ class MavenModel(pl.LightningModule):
     def test_step(self, batch, batch_idx):
         sentences, labels = batch
         features = self.tokenizer.batch_encode_plus(sentences, padding='max_length', truncation=True, return_attention_mask=True, return_tensors='pt', return_token_type_ids=False)
-        loss, outputs = self.forward(features["input_ids"].to(device=self.device), features["attention_mask"].to(device=self.device), labels.to(device=self.device))
+        loss, outputs = self.forward(features["input_ids"].to(device=self.device), features["attention_mask"].to(device=self.device), labels.to(device=self.device), is_training=False, is_contrastive=False)
         self.log("test_loss", loss, prog_bar=True, logger=True)
         prediction_int = torch.as_tensor((outputs - 0.5) > 0, dtype=torch.int32)
         prediction_str = self.get_event_type(prediction_int)
-        # for i, pred in enumerate(prediction_str):
-        #     self.validation_table.add_data(sentences[i], pred, labels[i])
-        # self.log("validation table", self.validation_table)
         data = [[s, pred, label] for s, pred, label in list(zip(sentences, prediction_str, self.get_event_type(labels)))]
         for step in data:
             self.test_table.add_data(*step)
@@ -101,7 +140,6 @@ class MavenModel(pl.LightningModule):
         self.log("validation/f1", f1, prog_bar=True, logger=True)
         self.log(f"validation/roc_auc", class_roc_auc, prog_bar=True, logger=True, on_epoch=True)
         wandb.log({"validation/table": self.validation_table})
-        #self.get_event_type(outputs)
 
     def test_epoch_end(self, outputs):
         class_roc_auc, acc, preci, recall, f1 = self.evaluate(outputs)
@@ -111,8 +149,6 @@ class MavenModel(pl.LightningModule):
         self.log("test/f1", f1, prog_bar=True, logger=True)
         self.log(f"test/roc_auc", class_roc_auc, prog_bar=True, logger=True, on_epoch=True)
         wandb.log({"test/table": self.test_table})
-
-        # self.get_event_type(outputs)
 
     def get_event_type(self, outputs):
         label_map_file = "./index_label_map.json"
@@ -132,7 +168,7 @@ class MavenModel(pl.LightningModule):
         return predicted_event_type
 
     def configure_optimizers(self):
-        optimizer = AdamW(self.parameters(), lr=1e-4)
+        optimizer = AdamW(self.parameters(), lr=1e-5)
         # scheduler = get_linear_schedule_with_warmup(
         #     optimizer,
         #     num_warmup_steps=self.n_warmup_steps,
