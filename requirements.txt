@@ -3,4 +3,4 @@ nltk
 pip-chill
 scikit-learn
 seaborn
-tensorboard
+wandb

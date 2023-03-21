@@ -43,6 +43,8 @@ class MavenModel(pl.LightningModule):
         loss, outputs = self.forward(features["input_ids"].to(device=self.device), features["attention_mask"].to(device=self.device), labels.to(device=self.device))
         self.log("val_loss", loss, prog_bar=True, logger=True)
         prediction_int = torch.as_tensor((outputs - 0.5) > 0, dtype=torch.int32)
+        data = {"sentences": sentences, "predictions": self.get_event_type(outputs), "labels": labels}
+        self.log_table(key="validation", columns=list(data.keys()), data=data)
         return {"loss": loss, "predictions": outputs, "labels": labels, "prediction_int": prediction_int}
 
     def test_step(self, batch, batch_idx):
@@ -51,6 +53,8 @@ class MavenModel(pl.LightningModule):
         loss, outputs = self.forward(features["input_ids"].to(device=self.device), features["attention_mask"].to(device=self.device), labels.to(device=self.device))
         self.log("test_loss", loss, prog_bar=True, logger=True)
         prediction_int = torch.as_tensor((outputs - 0.5) > 0, dtype=torch.int32)
+        data = {"sentences": sentences, "predictions": self.get_event_type(outputs), "labels": labels}
+        self.log_table(key="test", columns=list(data.keys()), data=data)
         return {"loss": loss, "predictions": outputs, "labels": labels, "prediction_int": prediction_int}
 
     def evaluate(self, outputs):
@@ -114,6 +118,7 @@ class MavenModel(pl.LightningModule):
                         event_type.append(index_label_map[str(i.item())])
                     predicted_event_type.append(event_type)
         print("predicted_event_type", predicted_event_type)
+        return predicted_event_type
 
     def configure_optimizers(self):
         optimizer = AdamW(self.parameters(), lr=1e-4)

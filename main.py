@@ -2,13 +2,14 @@ import pytorch_lightning as pl
 import torch
 from data_loader import MavenDataModule
 from pytorch_lightning.callbacks import ModelCheckpoint, EarlyStopping
-from pytorch_lightning.loggers import TensorBoardLogger
+from pytorch_lightning.loggers import WandbLogger
 from models.multi_label_classifier import MavenModel
+
 
 if __name__ == "__main__":
     torch.cuda.empty_cache()
     seed = 42
-    BERT_MODEL_NAME = 'bert-base-cased'
+    BERT_MODEL_NAME = 'roberta-base'
     torch.set_float32_matmul_precision('medium')
     pl.seed_everything(seed)
 
@@ -24,7 +25,7 @@ if __name__ == "__main__":
         monitor="val_loss",
         mode="min"
     )
-    logger = TensorBoardLogger("lightning_logs", name="maven")
+    logger = WandbLogger(project="maven")
     early_stopping_callback = EarlyStopping(monitor='val_loss', patience=10)
 
     trainer = pl.Trainer(
@@ -33,7 +34,7 @@ if __name__ == "__main__":
         max_epochs=100,
         accelerator='gpu',
         devices=[1],
-        fast_dev_run=False
+        fast_dev_run=True
     )
     trainer.fit(bert_model, datamodule=data_module)
     test_result = trainer.test(datamodule=data_module)
