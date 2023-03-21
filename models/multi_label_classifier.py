@@ -21,6 +21,9 @@ class MavenModel(pl.LightningModule):
         self.preci = torchmetrics.classification.MultilabelPrecision(num_labels=169).to(self.device)
         self.recall = torchmetrics.classification.MultilabelRecall(num_labels=169).to(self.device)
         self.f1 = torchmetrics.classification.MultilabelF1Score(num_labels=169).to(self.device)
+        self.column = ["sentences", "predictions", "labels"]
+        self.test_table = wandb.Table(columns=["sentences", "predictions", "labels"])
+        self.validation_table = wandb.Table(columns=["sentences", "predictions", "labels"])
 
     def forward(self, input_ids, attention_mask, labels=None):
         output = self.bert(input_ids, attention_mask=attention_mask)
@@ -44,8 +47,10 @@ class MavenModel(pl.LightningModule):
         loss, outputs = self.forward(features["input_ids"].to(device=self.device), features["attention_mask"].to(device=self.device), labels.to(device=self.device))
         self.log("val_loss", loss, prog_bar=True, logger=True)
         prediction_int = torch.as_tensor((outputs - 0.5) > 0, dtype=torch.int32)
-        data = {"sentences": sentences, "predictions": self.get_event_type(outputs), "labels": labels}
-        self.log_table(key="validation", columns=list(data.keys()), data=data)
+        prediction_str = self.get_event_type(prediction_int)
+        data = [[s, pred, label] for s, pred, label in list(zip(sentences, prediction_str, self.get_event_type(labels)))]
+        for step in data:
+            self.validation_table.add_data(*step)
         return {"loss": loss, "predictions": outputs, "labels": labels, "prediction_int": prediction_int}
 
     def test_step(self, batch, batch_idx):
@@ -54,9 +59,13 @@ class MavenModel(pl.LightningModule):
         loss, outputs = self.forward(features["input_ids"].to(device=self.device), features["attention_mask"].to(device=self.device), labels.to(device=self.device))
         self.log("test_loss", loss, prog_bar=True, logger=True)
         prediction_int = torch.as_tensor((outputs - 0.5) > 0, dtype=torch.int32)
-        print(f"prediction_int: {prediction_int}")
-        data = {"sentences": sentences, "predictions": self.get_event_type(outputs), "labels": labels}
-        wandb.log_table(key="test", columns=list(data.keys()), data=data)
+        prediction_str = self.get_event_type(prediction_int)
+        # for i, pred in enumerate(prediction_str):
+        #     self.validation_table.add_data(sentences[i], pred, labels[i])
+        # self.log("validation table", self.validation_table)
+        data = [[s, pred, label] for s, pred, label in list(zip(sentences, prediction_str, self.get_event_type(labels)))]
+        for step in data:
+            self.test_table.add_data(*step)
         return {"loss": loss, "predictions": outputs, "labels": labels, "prediction_int": prediction_int}
 
     def evaluate(self, outputs):
@@ -86,11 +95,12 @@ class MavenModel(pl.LightningModule):
 
     def validation_epoch_end(self, outputs):
         class_roc_auc, acc, preci, recall, f1 = self.evaluate(outputs)
-        self.log("valid/acc", acc, prog_bar=True, logger=True)
-        self.log("valid/preci", preci, prog_bar=True, logger=True)
-        self.log("valid/recall", recall, prog_bar=True, logger=True)
-        self.log("valid/f1", f1, prog_bar=True, logger=True)
-        self.log(f"train/roc_auc", class_roc_auc, prog_bar=True, logger=True, on_epoch=True)
+        self.log("validation/acc", acc, prog_bar=True, logger=True)
+        self.log("validation/preci", preci, prog_bar=True, logger=True)
+        self.log("validation/recall", recall, prog_bar=True, logger=True)
+        self.log("validation/f1", f1, prog_bar=True, logger=True)
+        self.log(f"validation/roc_auc", class_roc_auc, prog_bar=True, logger=True, on_epoch=True)
+        wandb.log({"validation/table": self.validation_table})
         #self.get_event_type(outputs)
 
     def test_epoch_end(self, outputs):
@@ -99,29 +109,26 @@ class MavenModel(pl.LightningModule):
         self.log("test/preci", preci, prog_bar=True, logger=True)
         self.log("test/recall", recall, prog_bar=True, logger=True)
         self.log("test/f1", f1, prog_bar=True, logger=True)
-        self.log(f"train/roc_auc", class_roc_auc, prog_bar=True, logger=True, on_epoch=True)
-        self.get_event_type(outputs)
+        self.log(f"test/roc_auc", class_roc_auc, prog_bar=True, logger=True, on_epoch=True)
+        wandb.log({"test/table": self.test_table})
+
+        # self.get_event_type(outputs)
 
     def get_event_type(self, outputs):
         label_map_file = "./index_label_map.json"
         with open(label_map_file, 'r') as f:
             index_label_map = json.load(f)
-        print(f"output: {outputs} with len {len(outputs)}")
-        print(f"output[prediction_int]: {outputs[0]} with type {type(outputs[0])}")
-        labels_indices = [(output == 1).nonzero(as_tuple=False) for output in outputs]
+        labels_indices = [output.nonzero(as_tuple=True) for output in outputs]
         predicted_event_type = []
         for label_index in labels_indices:
-            if not label_index.numel():
+            if not label_index[0].numel():
                 event_type = ["non_event"]
                 predicted_event_type.append(event_type)
             else:
-                for indices in label_index.detach():
-                    event_type = []
-                    for i in indices:
-                        # print(f"i {i}")
-                        event_type.append(index_label_map[str(i.item())])
+                event_type = []
+                for indices in label_index[0].detach():
+                    event_type.append(index_label_map[str(indices.item())])
                     predicted_event_type.append(event_type)
-        print("predicted_event_type", predicted_event_type)
         return predicted_event_type
 
     def configure_optimizers(self):
