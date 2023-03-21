@@ -6,13 +6,13 @@ import torch
 import pandas as pd
 import ast
 from typing import Optional
-from transformers import BertTokenizer
+from transformers import RobertaTokenizer
 
 
 class MavenMultiLabelClassificationDataset(Dataset):
     # This loads the data and converts it, make data rdy
     def __init__(self, path: str = "../../data/MAVEN/train.csv"):
-        self.df = pd.read_csv(path)
+        self.df = pd.read_csv(str(Path(DATA_PATH, "train.csv").absolute()))
         self.df_labels = self.df[['event_type']].fillna('["non_event"]').apply(self.deduplicate, axis=1)
 
         # convert to torch dtypes
@@ -58,14 +58,15 @@ class MavenMultiLabelClassificationDataset(Dataset):
         label = self.labels[idx]
         return sentence, label
 
+DATA_PATH = "../../data/MAVEN/" # "/export/home/huang/Projects/data/MAVEN/"
 
 class MavenDataModule(pl.LightningDataModule):
 
-    def __init__(self, pretrained_model_name_or_path):
+    def __init__(self, pretrained_model_name_or_path, data_path: Optional = DATA_PATH):
         super(MavenDataModule).__init__()
         self.prepare_data_per_node = True
         self._log_hyperparams = True
-        self.tokenizer = BertTokenizer.from_pretrained(pretrained_model_name_or_path)
+        self.tokenizer = RobertaTokenizer.from_pretrained(pretrained_model_name_or_path)
 
     def prepare_data(self):
         """
@@ -75,8 +76,8 @@ class MavenDataModule(pl.LightningDataModule):
         pass
 
     def setup(self, stage: Optional[str] = None):
-        self.train = MavenMultiLabelClassificationDataset("../../data/MAVEN/train.csv")
-        self.test = MavenMultiLabelClassificationDataset("../../data/MAVEN/valid.csv")
+        self.train = MavenMultiLabelClassificationDataset(str(Path(DATA_PATH, "train.csv").absolute()))
+        self.test = MavenMultiLabelClassificationDataset(str(Path(DATA_PATH, "valid.csv").absolute()))
         train_set_size = int(len(self.train) * 0.8)
         valid_set_size = len(self.train) - train_set_size
         self.train, self.validate = random_split(self.train, [train_set_size, valid_set_size])

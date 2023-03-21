@@ -1,16 +1,17 @@
 import pytorch_lightning as pl
-from transformers import BertModel, AdamW, get_linear_schedule_with_warmup, BertTokenizer
+from transformers import RobertaModel, AdamW, get_linear_schedule_with_warmup, RobertaTokenizer
 import torch
 import torch.nn as nn
 import torchmetrics
 import json
+import wandb
 
 
 class MavenModel(pl.LightningModule):
     def __init__(self, n_classes: int, pretrained_model_name_or_path: str, n_training_steps=None, n_warmup_steps=None):
         super().__init__()
-        self.bert = BertModel.from_pretrained(pretrained_model_name_or_path, return_dict=True)
-        self.tokenizer = BertTokenizer.from_pretrained(pretrained_model_name_or_path)
+        self.bert = RobertaModel.from_pretrained(pretrained_model_name_or_path, return_dict=True)
+        self.tokenizer = RobertaTokenizer.from_pretrained(pretrained_model_name_or_path)
         self.classifier = nn.Linear(self.bert.config.hidden_size, n_classes)
         self.n_training_steps = n_training_steps
         self.n_warmup_steps = n_warmup_steps
@@ -53,8 +54,9 @@ class MavenModel(pl.LightningModule):
         loss, outputs = self.forward(features["input_ids"].to(device=self.device), features["attention_mask"].to(device=self.device), labels.to(device=self.device))
         self.log("test_loss", loss, prog_bar=True, logger=True)
         prediction_int = torch.as_tensor((outputs - 0.5) > 0, dtype=torch.int32)
+        print(f"prediction_int: {prediction_int}")
         data = {"sentences": sentences, "predictions": self.get_event_type(outputs), "labels": labels}
-        self.log_table(key="test", columns=list(data.keys()), data=data)
+        wandb.log_table(key="test", columns=list(data.keys()), data=data)
         return {"loss": loss, "predictions": outputs, "labels": labels, "prediction_int": prediction_int}
 
     def evaluate(self, outputs):
@@ -89,7 +91,7 @@ class MavenModel(pl.LightningModule):
         self.log("valid/recall", recall, prog_bar=True, logger=True)
         self.log("valid/f1", f1, prog_bar=True, logger=True)
         self.log(f"train/roc_auc", class_roc_auc, prog_bar=True, logger=True, on_epoch=True)
-        self.get_event_type(outputs)
+        #self.get_event_type(outputs)
 
     def test_epoch_end(self, outputs):
         class_roc_auc, acc, preci, recall, f1 = self.evaluate(outputs)
@@ -104,7 +106,9 @@ class MavenModel(pl.LightningModule):
         label_map_file = "./index_label_map.json"
         with open(label_map_file, 'r') as f:
             index_label_map = json.load(f)
-        labels_indices = [(output["prediction_int"] == 1).nonzero(as_tuple=False) for output in outputs]
+        print(f"output: {outputs} with len {len(outputs)}")
+        print(f"output[prediction_int]: {outputs[0]} with type {type(outputs[0])}")
+        labels_indices = [(output == 1).nonzero(as_tuple=False) for output in outputs]
         predicted_event_type = []
         for label_index in labels_indices:
             if not label_index.numel():

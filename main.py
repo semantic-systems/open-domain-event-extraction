@@ -25,7 +25,7 @@ if __name__ == "__main__":
         monitor="val_loss",
         mode="min"
     )
-    logger = WandbLogger(project="maven")
+    logger = WandbLogger(project="maven", name="playful morning :sparkles:")
     early_stopping_callback = EarlyStopping(monitor='val_loss', patience=10)
 
     trainer = pl.Trainer(
@@ -33,7 +33,7 @@ if __name__ == "__main__":
         callbacks=[early_stopping_callback, checkpoint_callback],
         max_epochs=100,
         accelerator='gpu',
-        devices=[1],
+        devices=[0],
         fast_dev_run=True
     )
     trainer.fit(bert_model, datamodule=data_module)
