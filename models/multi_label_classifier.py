@@ -34,7 +34,9 @@ class MavenModel(pl.LightningModule):
     def forward(self, input_ids, attention_mask, labels=None, is_training=True, is_contrastive=True):
         if is_contrastive and is_training:
             loss = 0
-            logits = self.classifier(self.lm(input_ids=input_ids, attention_mask=attention_mask).pooler_output)
+            encoded_features = self.lm(input_ids=input_ids, attention_mask=attention_mask).pooler_output
+            normalized_features = self.normalize(encoded_features)
+            logits = self.classifier(normalized_features)
             output = torch.sigmoid(logits)
             multiview_sentences, multiview_labels = self.get_multiview_batch(logits, labels)
             contrastive_loss = self.contrastive_loss(multiview_sentences, multiview_labels)
@@ -43,13 +45,19 @@ class MavenModel(pl.LightningModule):
                 loss = self.loss(output, labels)
             return loss + 0.5*contrastive_loss, output
         else:
-            output = self.lm(input_ids, attention_mask=attention_mask)
-            output = self.classifier(output.pooler_output)
-            output = torch.sigmoid(output)
+            encoded_features = self.lm(input_ids=input_ids, attention_mask=attention_mask).pooler_output
+            normalized_features = self.normalize(encoded_features)
+            logits = self.classifier(normalized_features)
+            output = torch.sigmoid(logits)
             loss = 0
             if labels is not None:
                 loss = self.loss(output, labels)
             return loss, output
+
+    def normalize(self, output):
+        norm = output.norm(p=2, dim=1, keepdim=True)
+        output = output.div(norm.expand_as(output))
+        return output
 
     def get_multiview_batch(self, features, labels, dummy=False):
         # no augmentation
