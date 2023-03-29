@@ -86,7 +86,7 @@ class MavenModel(pl.LightningModule):
 
     def training_step(self, batch, batch_idx):
         sentences, labels = self.augment(batch)
-        features = self.tokenizer.batch_encode_plus(sentences, padding='max_length', truncation=True, return_attention_mask=True, return_tensors='pt', return_token_type_ids=False)
+        features = self.tokenizer.batch_encode_plus(sentences, padding='max_length', truncation=True, return_attention_mask=True, is_contrastive=False, return_tensors='pt', return_token_type_ids=False)
         loss, outputs = self.forward(features["input_ids"].to(device=self.device), features["attention_mask"].to(device=self.device), labels.to(device=self.device))
         self.log("train_loss", loss, prog_bar=True, logger=True)
         return {"loss": loss, "predictions": outputs, "labels": labels}
@@ -189,3 +189,11 @@ class MavenModel(pl.LightningModule):
             #     interval='step'
             # )
         )
+
+
+if __name__ == "__main__":
+    model = MavenModel.load_from_checkpoint("../checkpoints/bce.ckpt")
+    # disable randomness, dropout, etc...
+    model.eval()
+    # predict with the model
+    # y_hat = model(x)
