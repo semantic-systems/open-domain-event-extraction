@@ -85,7 +85,7 @@ class MavenModel(pl.LightningModule):
         return augmented_text, augmented_label
 
     def training_step(self, batch, batch_idx):
-        sentences, labels = self.augment(batch)
+        sentences, labels = batch #self.augment(batch)
         features = self.tokenizer.batch_encode_plus(sentences, padding='max_length', truncation=True, return_attention_mask=True, return_tensors='pt', return_token_type_ids=False)
         loss, outputs = self.forward(features["input_ids"].to(device=self.device), features["attention_mask"].to(device=self.device), labels.to(device=self.device), is_contrastive=False)
         self.log("train_loss", loss, prog_bar=True, logger=True)
