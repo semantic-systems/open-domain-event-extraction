@@ -46,8 +46,8 @@ class MavenModel(pl.LightningModule):
             return loss + 0.5*contrastive_loss, output
         else:
             encoded_features = self.lm(input_ids=input_ids, attention_mask=attention_mask).pooler_output
-            normalized_features = self.normalize(encoded_features)
-            logits = self.classifier(normalized_features)
+            # normalized_features = self.normalize(encoded_features)
+            logits = self.classifier(encoded_features)
             output = torch.sigmoid(logits)
             loss = 0
             if labels is not None:
