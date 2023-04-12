@@ -397,7 +397,7 @@ class SentenceTransformersModel(InstructorModel):
     def __init__(self, n_classes: int):
         super(SentenceTransformersModel, self).__init__(n_classes)
         self.lm = SentenceTransformer('sentence-transformers/all-MiniLM-L6-v2')
-        self.classifier = nn.Linear(self.lm.config.hidden_size, n_classes, device=self.device, dtype=torch.float32)
+        self.classifier = nn.Linear(786, n_classes, device=self.device, dtype=torch.float32)
 
     def instructor_forward(self, sentences: list):
         embeddings = self.lm.encode(sentences)
