@@ -17,7 +17,9 @@ if __name__ == "__main__":
     wandb.login()
 
     data_module = MavenDataModule()
-    model = SentenceTransformersModel(n_classes=169)#MavenModel(n_classes=169, pretrained_model_name_or_path=BERT_MODEL_NAME, n_training_steps=100, n_warmup_steps=20)
+    # model = SentenceTransformersModel(n_classes=169)
+    # model = InstructorModel(n_classes=169)
+    model = MavenModel(n_classes=169, pretrained_model_name_or_path=BERT_MODEL_NAME, n_training_steps=100, n_warmup_steps=20)
     checkpoint_callback = ModelCheckpoint(
         dirpath="checkpoints",
         filename="asbert-best-checkpoint",
@@ -26,7 +28,7 @@ if __name__ == "__main__":
         monitor="val_loss",
         mode="min"
     )
-    logger = WandbLogger(project="maven", name="miniLM/BCE")
+    logger = WandbLogger(project="maven", name="roberta/BCE")
     early_stopping_callback = EarlyStopping(monitor='val_loss', patience=10)
 
     trainer = pl.Trainer(
