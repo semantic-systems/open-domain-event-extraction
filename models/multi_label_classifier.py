@@ -200,7 +200,7 @@ class VicunaModel(pl.LightningModule):
     def __init__(self, n_classes: int, n_training_steps=None,
                  n_warmup_steps=None):
         super().__init__()
-        self.classifier = nn.Linear(768, n_classes)
+        self.classifier = nn.Linear(768, n_classes).cuda()
         self.n_training_steps = n_training_steps
         self.n_warmup_steps = n_warmup_steps
         self.loss = nn.BCELoss()
@@ -232,6 +232,7 @@ class VicunaModel(pl.LightningModule):
         return embeddings
 
     def forward(self, sentences: list, labels=None, is_training=True, is_contrastive=True):
+        labels = torch.tensor(labels, device=self.device)
         if is_contrastive and is_training:
             loss = 0
             encoded_features = self.api_call(sentences, device=self.device)
