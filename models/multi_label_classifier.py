@@ -25,7 +25,7 @@ class MavenModel(pl.LightningModule):
         self.classifier = nn.Linear(self.lm.config.hidden_size, n_classes)
         self.n_training_steps = n_training_steps
         self.n_warmup_steps = n_warmup_steps
-        self.loss = nn.BCELoss()
+        self.loss = nn.BCEWithLogitsLoss()
         self.contrastive_loss = HMLC()
         self.auroc = torchmetrics.AUROC(task="multilabel", num_labels=169).to(self.device)
         self.accuracy = torchmetrics.classification.MultilabelAccuracy(num_labels=169).to(self.device)
@@ -48,7 +48,7 @@ class MavenModel(pl.LightningModule):
             contrastive_loss = self.contrastive_loss(multiview_sentences, multiview_labels)
             self.log("train/contrastive loss", contrastive_loss)
             if labels is not None:
-                loss = self.loss(output, labels)
+                loss = self.loss(logits, labels)
             return loss + 0.5*contrastive_loss, output
         else:
             encoded_features = self.lm(input_ids=input_ids, attention_mask=attention_mask).pooler_output
@@ -57,7 +57,7 @@ class MavenModel(pl.LightningModule):
             output = torch.sigmoid(logits)
             loss = 0
             if labels is not None:
-                loss = self.loss(output, labels)
+                loss = self.loss(logits, labels)
             return loss, output
 
     def normalize(self, output):
@@ -396,7 +396,7 @@ class InstructorModel(pl.LightningModule):
 class SentenceTransformersModel(InstructorModel):
     def __init__(self, n_classes: int):
         super(SentenceTransformersModel, self).__init__(n_classes)
-        self.lm = SentenceTransformer('sentence-transformers/all-MiniLM-L6-v2')
+        self.lm = SentenceTransformer('sentence-transformers/all-MiniLM-L6-v2', device="cuda:0")
         self.classifier = nn.Linear(768, n_classes, device=self.device, dtype=torch.float32)
 
     def instructor_forward(self, sentences: list):
