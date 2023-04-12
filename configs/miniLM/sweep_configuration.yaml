@@ -1,0 +1,18 @@
+method: bayes
+metric:
+  goal: maximize
+  name: validation/f1
+parameters:
+  alpha:
+    distribution: uniform
+    max: 1
+    min: 0
+  lr:
+    distribution: uniform
+    max: 1e-04
+    min: 1e-06
+  temperature:
+    distribution: uniform
+    max: 20
+    min: 0.03
+program: main.py

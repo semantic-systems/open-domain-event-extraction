@@ -19,15 +19,19 @@ NUM_AUGMENTATION = 2
 
 
 class MavenModel(pl.LightningModule):
-    def __init__(self, n_classes: int, pretrained_model_name_or_path: str, n_training_steps=None, n_warmup_steps=None):
+    def __init__(self, n_classes: int, lr: float, temperature: float, alpha: float, n_training_steps=None, n_warmup_steps=None):
         super().__init__()
-        self.lm = RobertaModel.from_pretrained(pretrained_model_name_or_path, return_dict=True)
-        self.tokenizer = RobertaTokenizer.from_pretrained(pretrained_model_name_or_path)
-        self.classifier = nn.Linear(self.lm.config.hidden_size, n_classes)
+        self.lr = lr
+        self.temperature = temperature
+        self.alpha = alpha
         self.n_training_steps = n_training_steps
         self.n_warmup_steps = n_warmup_steps
+
+        self.lm = RobertaModel.from_pretrained('roberta-base', return_dict=True)
+        self.tokenizer = RobertaTokenizer.from_pretrained('roberta-base')
+        self.classifier = nn.Linear(self.lm.config.hidden_size, n_classes)
         self.loss = nn.BCEWithLogitsLoss()
-        self.contrastive_loss = HMLC(temperature=0.07)
+        self.contrastive_loss = HMLC(temperature=self.temperature)
         self.auroc = torchmetrics.AUROC(task="multilabel", num_labels=169).to(self.device)
         self.accuracy = torchmetrics.classification.MultilabelAccuracy(num_labels=169).to(self.device)
         self.preci = torchmetrics.classification.MultilabelPrecision(num_labels=169).to(self.device)
@@ -50,7 +54,7 @@ class MavenModel(pl.LightningModule):
             self.log("train/contrastive loss", contrastive_loss)
             if labels is not None:
                 loss = self.loss(logits, labels)
-            return loss + 0.5*contrastive_loss, output
+            return loss + self.alpha*contrastive_loss, output
         else:
             encoded_features = self.lm(input_ids=input_ids, attention_mask=attention_mask).pooler_output
             # normalized_features = self.normalize(encoded_features)
@@ -183,7 +187,7 @@ class MavenModel(pl.LightningModule):
         return predicted_event_type
 
     def configure_optimizers(self):
-        optimizer = AdamW(self.parameters(), lr=1e-5)
+        optimizer = AdamW(self.parameters(), lr=self.lr)
         # scheduler = get_linear_schedule_with_warmup(
         #     optimizer,
         #     num_warmup_steps=self.n_warmup_steps,
@@ -199,15 +203,18 @@ class MavenModel(pl.LightningModule):
 
 
 class InstructorModel(pl.LightningModule):
-    def __init__(self, n_classes: int, n_training_steps=None,
+    def __init__(self, n_classes: int, lr: float, temperature: float, alpha: float, n_training_steps=None,
                  n_warmup_steps=None):
         super().__init__()
+        self.lr = lr
+        self.temperature = temperature
+        self.alpha = alpha
         self.lm = INSTRUCTOR('hkunlp/instructor-large')
         self.classifier = nn.Linear(768, n_classes, device=self.device, dtype=torch.float32)
         self.n_training_steps = n_training_steps
         self.n_warmup_steps = n_warmup_steps
         self.loss = nn.BCEWithLogitsLoss()
-        self.contrastive_loss = HMLC(temperature=0.07)
+        self.contrastive_loss = HMLC(temperature=self.temperature)
         self.auroc = torchmetrics.AUROC(task="multilabel", num_labels=169).to(self.device)
         self.accuracy = torchmetrics.classification.MultilabelAccuracy(num_labels=169).to(self.device)
         self.preci = torchmetrics.classification.MultilabelPrecision(num_labels=169).to(self.device)
@@ -251,7 +258,7 @@ class InstructorModel(pl.LightningModule):
             self.log("train/contrastive loss", contrastive_loss)
             if labels is not None:
                 loss = self.loss(logits, labels)
-            return loss + 0.5*contrastive_loss, torch.sigmoid(logits)
+            return loss + self.alpha*contrastive_loss, torch.sigmoid(logits)
         else:
             encoded_features = self.instructor_forward(sentences)
             # normalized_features = self.normalize(encoded_features)
@@ -381,7 +388,7 @@ class InstructorModel(pl.LightningModule):
         return predicted_event_type
 
     def configure_optimizers(self):
-        optimizer = AdamW(self.parameters(), lr=1e-5)
+        optimizer = AdamW(self.parameters(), lr=self.lr)
         # scheduler = get_linear_schedule_with_warmup(
         #     optimizer,
         #     num_warmup_steps=self.n_warmup_steps,
@@ -397,8 +404,8 @@ class InstructorModel(pl.LightningModule):
 
 
 class SentenceTransformersModel(InstructorModel):
-    def __init__(self, n_classes: int):
-        super(SentenceTransformersModel, self).__init__(n_classes)
+    def __init__(self, n_classes: int, lr: float, temperature: float, alpha: float):
+        super(SentenceTransformersModel, self).__init__(n_classes, lr, temperature, alpha)
         self.lm = SentenceTransformer('sentence-transformers/all-MiniLM-L6-v2')
         self.classifier = nn.Linear(384, n_classes, device=self.device, dtype=torch.float32)
 
@@ -414,7 +421,7 @@ class SentenceTransformersModel(InstructorModel):
             self.log("train/contrastive loss", contrastive_loss)
             if labels is not None:
                 loss = self.loss(logits, labels)
-            return loss + 0.5*contrastive_loss, torch.sigmoid(logits)
+            return loss + self.alpha*contrastive_loss, torch.sigmoid(logits)
         else:
             if labels is not None:
                 loss = self.loss(logits, labels)
