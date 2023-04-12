@@ -1,3 +1,4 @@
+import os
 import pytorch_lightning as pl
 import torch
 import wandb
@@ -8,6 +9,7 @@ from models.multi_label_classifier import MavenModel, InstructorModel, SentenceT
 
 if __name__ == "__main__":
     torch.cuda.empty_cache()
+    os.environ["TOKENIZERS_PARALLELISM"] = "false"
     seed = 42
     BERT_MODEL_NAME = 'roberta-base'
     torch.set_float32_matmul_precision('medium')
