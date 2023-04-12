@@ -237,11 +237,11 @@ class InstructorModel(pl.LightningModule):
 
     def instructor_forward(self, sentences: list):
         prompts: List[List] = [["Represent the News titles for event clustering: ", s] for s in sentences]
-        embeddings = self.lm.encode(prompts)
+        embeddings = self.lm.encode(prompts, convert_to_tensor=True)
         return embeddings
 
     def forward(self, sentences: list, labels=None, is_training=True, is_contrastive=True):
-        labels = torch.tensor(labels, device=self.device, dtype=torch.int32)
+        labels = torch.tensor(labels, device=self.device, dtype=torch.float32)
         if is_contrastive and is_training:
             loss = 0
             encoded_features = self.instructor_forward(sentences)
@@ -407,11 +407,10 @@ class SentenceTransformersModel(InstructorModel):
         loss = 0
         labels = torch.tensor(labels, device=self.device, dtype=torch.int32)
         features = self.tokenizer.batch_encode_plus(sentences, padding='max_length', truncation=True, return_attention_mask=True, return_tensors='pt', return_token_type_ids=False)
-        print(f"features[input_ids] with shape {features['input_ids'].shape}")
-        print(f"features[attention_mask] with shape {features['attention_mask'].shape}")
-        print(f"labels with shape {labels.shape}")
-        encoded_features = self.lm(features["input_ids"].to(device=self.device),
-                                   features["attention_mask"].to(device=self.device), labels)
+        print(f"features[input_ids] with shape {features['input_ids'].shape} on device {features['input_ids'].device}")
+        print(f"features[attention_mask] with shape {features['attention_mask'].shape} on device {features['attention_mask'].device}")
+        print(f"labels with shape {labels.shape} on device {labels.device}")
+        encoded_features = self.lm(features["input_ids"].to(self.device), features["attention_mask"].to(self.device), labels)
         encoded_features = self.mean_pooling(encoded_features, features['attention_mask'])
         # normalized_features = F.normalize(encoded_features, p=2, dim=1)
         logits = self.classifier(encoded_features)
