@@ -405,7 +405,7 @@ class SentenceTransformersModel(InstructorModel):
     def forward(self, sentences: list, labels=None, is_training=True, is_contrastive=True):
         loss = 0
         labels = torch.tensor(labels, device=self.device, dtype=torch.float32)
-        encoded_features = self.lm.encode(sentences, convert_to_tensor=True, normalize_embeddings=True)
+        encoded_features = self.lm.encode(sentences, convert_to_tensor=True, normalize_embeddings=False)
         logits = self.classifier(encoded_features)
 
         if is_contrastive and is_training:
