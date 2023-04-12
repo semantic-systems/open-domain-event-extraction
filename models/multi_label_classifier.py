@@ -11,7 +11,7 @@ import json
 import requests
 import wandb
 from losses import HMLC
-
+from InstructorEmbedding import INSTRUCTOR
 
 NUM_AUGMENTATION = 1
 
@@ -200,7 +200,8 @@ class VicunaModel(pl.LightningModule):
     def __init__(self, n_classes: int, n_training_steps=None,
                  n_warmup_steps=None):
         super().__init__()
-        self.classifier = nn.Linear(768, n_classes, device=self.device, dtype=torch.float16)
+        self.lm = INSTRUCTOR('hkunlp/instructor-large').to(self.device)
+        self.classifier = nn.Linear(768, n_classes, device=self.device, dtype=torch.float32)
         self.n_training_steps = n_training_steps
         self.n_warmup_steps = n_warmup_steps
         self.loss = nn.BCELoss()
@@ -222,20 +223,25 @@ class VicunaModel(pl.LightningModule):
         }
 
         payload = {
-            "instruction": "Represent the News sentence for event clustering: ",
+            "instruction": "Represent the News titles for event clustering: ",
             "sentence": sentence,
             "key": "B48KSZDAXDQT1NX2"
         }
 
         response = requests.post('https://instructor.skynet.coypu.org', headers=headers, json=payload).json().get("embeddings", None)
-        embeddings = torch.tensor(np.asarray(response), device=device, dtype=torch.float16)
+        embeddings = torch.tensor(np.asarray(response), device=device, dtype=torch.float32)
+        return embeddings
+
+    def vicuna_forward(self, sentences: list):
+        prompts: List[List] = [["Represent the News titles for event clustering: ", s] for s in sentences]
+        embeddings = self.lm.encode(prompts)
         return embeddings
 
     def forward(self, sentences: list, labels=None, is_training=True, is_contrastive=True):
         labels = torch.tensor(labels, device=self.device)
         if is_contrastive and is_training:
             loss = 0
-            encoded_features = self.api_call(sentences, device=self.device)
+            encoded_features = self.vicuna_forward(sentences)
             normalized_features = self.normalize(encoded_features)
             logits = self.classifier(normalized_features)
             output = torch.sigmoid(logits)
