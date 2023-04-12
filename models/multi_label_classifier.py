@@ -394,9 +394,8 @@ class InstructorModel(pl.LightningModule):
 
 
 class SentenceTransformersModel(InstructorModel):
-    def __init__(self, n_classes: int, n_training_steps=None,
-                 n_warmup_steps=None):
-        super(SentenceTransformersModel).__init__(n_classes, n_training_steps, n_warmup_steps)
+    def __init__(self, n_classes: int):
+        super(SentenceTransformersModel).__init__(n_classes)
         self.lm = SentenceTransformer('sentence-transformers/all-MiniLM-L6-v2')
         self.classifier = nn.Linear(384, n_classes, device=self.device, dtype=torch.float32)
 
