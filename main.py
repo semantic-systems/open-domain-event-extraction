@@ -24,7 +24,7 @@ if __name__ == "__main__":
         monitor="val_loss",
         mode="min"
     )
-    logger = WandbLogger(project="maven", name="instructor/BCE-local")
+    logger = WandbLogger(project="maven", name="instructor/BCE-local-unnormalized")
     early_stopping_callback = EarlyStopping(monitor='val_loss', patience=10)
 
     trainer = pl.Trainer(

@@ -253,8 +253,7 @@ class InstructorModel(pl.LightningModule):
             return loss + 0.5*contrastive_loss, output
         else:
             encoded_features = self.api_call(sentences, device=self.device)
-            normalized_features = self.normalize(encoded_features)
-            logits = self.classifier(normalized_features)
+            logits = self.classifier(encoded_features)
             output = torch.sigmoid(logits)
             loss = 0
             if labels is not None:
