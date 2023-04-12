@@ -14,6 +14,7 @@ def main():
     seed = 42
     torch.set_float32_matmul_precision('medium')
     pl.seed_everything(seed)
+    wandb.init()
     lr = wandb.config.lr
     temperature = wandb.config.temperature
     alpha = wandb.config.alpha
