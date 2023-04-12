@@ -237,7 +237,7 @@ class InstructorModel(pl.LightningModule):
 
     def instructor_forward(self, sentences: list):
         prompts: List[List] = [["Represent the News titles for event clustering: ", s] for s in sentences]
-        embeddings = self.lm.encode(prompts, convert_to_tensor=True)
+        embeddings = self.lm.encode(prompts, convert_to_tensor=True, normalize_embeddings=True)
         return embeddings
 
     def forward(self, sentences: list, labels=None, is_training=True, is_contrastive=True):
@@ -405,8 +405,7 @@ class SentenceTransformersModel(InstructorModel):
     def forward(self, sentences: list, labels=None, is_training=True, is_contrastive=True):
         loss = 0
         labels = torch.tensor(labels, device=self.device, dtype=torch.float32)
-        encoded_features = self.lm.encode(sentences, convert_to_tensor=True)
-        # normalized_features = F.normalize(encoded_features, p=2, dim=1)
+        encoded_features = self.lm.encode(sentences, convert_to_tensor=True, normalize_embeddings=True)
         logits = self.classifier(encoded_features)
 
         if is_contrastive and is_training:

@@ -11,24 +11,23 @@ if __name__ == "__main__":
     torch.cuda.empty_cache()
     os.environ["TOKENIZERS_PARALLELISM"] = "false"
     seed = 42
-    BERT_MODEL_NAME = 'roberta-base'
     torch.set_float32_matmul_precision('medium')
     pl.seed_everything(seed)
     wandb.login()
 
     data_module = MavenDataModule()
-    # model = SentenceTransformersModel(n_classes=169)
+    model = SentenceTransformersModel(n_classes=169)
     # model = InstructorModel(n_classes=169)
-    model = MavenModel(n_classes=169, pretrained_model_name_or_path=BERT_MODEL_NAME, n_training_steps=100, n_warmup_steps=20)
+    # model = MavenModel(n_classes=169, pretrained_model_name_or_path='roberta-base', n_training_steps=100, n_warmup_steps=20)
     checkpoint_callback = ModelCheckpoint(
         dirpath="checkpoints",
-        filename="asbert-best-checkpoint",
+        filename="miniLM-best-checkpoint",
         save_top_k=1,
         verbose=True,
         monitor="val_loss",
         mode="min"
     )
-    logger = WandbLogger(project="maven", name="roberta/BCE")
+    logger = WandbLogger(project="maven", name="miniLM/BCE-normalized")
     early_stopping_callback = EarlyStopping(monitor='val_loss', patience=10)
 
     trainer = pl.Trainer(
