@@ -204,7 +204,7 @@ class InstructorModel(pl.LightningModule):
         self.classifier = nn.Linear(768, n_classes, device=self.device, dtype=torch.float32)
         self.n_training_steps = n_training_steps
         self.n_warmup_steps = n_warmup_steps
-        self.loss = nn.BCELoss()
+        self.loss = nn.BCEWithLogitsLoss()
         self.contrastive_loss = HMLC()
         self.auroc = torchmetrics.AUROC(task="multilabel", num_labels=169).to(self.device)
         self.accuracy = torchmetrics.classification.MultilabelAccuracy(num_labels=169).to(self.device)
@@ -244,21 +244,19 @@ class InstructorModel(pl.LightningModule):
             encoded_features = self.instructor_forward(sentences)
             normalized_features = self.normalize(encoded_features)
             logits = self.classifier(normalized_features)
-            output = torch.sigmoid(logits)
             multiview_sentences, multiview_labels = self.get_multiview_batch(logits, labels)
             contrastive_loss = self.contrastive_loss(multiview_sentences, multiview_labels)
             self.log("train/contrastive loss", contrastive_loss)
             if labels is not None:
-                loss = self.loss(output, labels)
-            return loss + 0.5*contrastive_loss, output
+                loss = self.loss(logits, labels)
+            return loss + 0.5*contrastive_loss, torch.sigmoid(logits)
         else:
             encoded_features = self.api_call(sentences, device=self.device)
             logits = self.classifier(encoded_features)
-            output = torch.sigmoid(logits)
             loss = 0
             if labels is not None:
-                loss = self.loss(output, labels)
-            return loss, output
+                loss = self.loss(logits, labels)
+            return loss, torch.sigmoid(logits)
 
     def normalize(self, output):
         norm = output.norm(p=2, dim=1, keepdim=True)
@@ -322,9 +320,9 @@ class InstructorModel(pl.LightningModule):
         labels = []
         predictions = []
         for output in outputs:
-            for out_labels in output["labels"]:#.detach().cpu():
+            for out_labels in output["labels"]:
                 labels.append(out_labels)
-            for out_predictions in output["predictions"]:#.detach().cpu():
+            for out_predictions in output["predictions"]:
                 predictions.append(out_predictions)
         labels = torch.stack(labels).int()
         predictions = torch.stack(predictions)
