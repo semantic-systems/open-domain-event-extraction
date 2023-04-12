@@ -241,7 +241,7 @@ class InstructorModel(pl.LightningModule):
         return embeddings
 
     def forward(self, sentences: list, labels=None, is_training=True, is_contrastive=True):
-        labels = torch.tensor(labels, device=self.device)
+        labels = torch.tensor(labels, device=self.device, dtype=torch.int32)
         if is_contrastive and is_training:
             loss = 0
             encoded_features = self.instructor_forward(sentences)
@@ -405,7 +405,7 @@ class SentenceTransformersModel(InstructorModel):
 
     def forward(self, sentences: list, labels=None, is_training=True, is_contrastive=True):
         loss = 0
-        labels = torch.tensor(labels, device=self.device)
+        labels = torch.tensor(labels, device=self.device, dtype=torch.int32)
         features = self.tokenizer.batch_encode_plus(sentences, padding='max_length', truncation=True, return_attention_mask=True, return_tensors='pt', return_token_type_ids=False)
         encoded_features = self.lm(features["input_ids"].to(device=self.device),
                                    features["attention_mask"].to(device=self.device), labels.to(device=self.device))
