@@ -399,19 +399,13 @@ class InstructorModel(pl.LightningModule):
 class SentenceTransformersModel(InstructorModel):
     def __init__(self, n_classes: int):
         super(SentenceTransformersModel, self).__init__(n_classes)
-        self.tokenizer = AutoTokenizer.from_pretrained('sentence-transformers/all-MiniLM-L6-v2')
-        self.lm = AutoModel.from_pretrained('sentence-transformers/all-MiniLM-L6-v2')
-        self.classifier = nn.Linear(self.lm.config.hidden_size, n_classes, device=self.device, dtype=torch.float32)
+        self.lm = SentenceTransformer('sentence-transformers/all-MiniLM-L6-v2')
+        self.classifier = nn.Linear(384, n_classes, device=self.device, dtype=torch.float32)
 
     def forward(self, sentences: list, labels=None, is_training=True, is_contrastive=True):
         loss = 0
-        labels = torch.tensor(labels, device=self.device, dtype=torch.int32)
-        features = self.tokenizer.batch_encode_plus(sentences, padding='max_length', truncation=True, return_attention_mask=True, return_tensors='pt', return_token_type_ids=False)
-        print(f"features[input_ids] with shape {features['input_ids'].shape} on device {features['input_ids'].device}")
-        print(f"features[attention_mask] with shape {features['attention_mask'].shape} on device {features['attention_mask'].device}")
-        print(f"labels with shape {labels.shape} on device {labels.device}")
-        encoded_features = self.lm(features["input_ids"].to(self.device), features["attention_mask"].to(self.device), labels)
-        encoded_features = self.mean_pooling(encoded_features, features['attention_mask'])
+        labels = torch.tensor(labels, device=self.device, dtype=torch.float32)
+        encoded_features = self.lm.encode(sentences, convert_to_tensor=True)
         # normalized_features = F.normalize(encoded_features, p=2, dim=1)
         logits = self.classifier(encoded_features)
 
