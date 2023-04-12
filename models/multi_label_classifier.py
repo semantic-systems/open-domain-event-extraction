@@ -196,11 +196,11 @@ class MavenModel(pl.LightningModule):
         )
 
 
-class VicunaModel(pl.LightningModule):
+class InstructorModel(pl.LightningModule):
     def __init__(self, n_classes: int, n_training_steps=None,
                  n_warmup_steps=None):
         super().__init__()
-        self.lm = INSTRUCTOR('hkunlp/instructor-large').to(self.device)
+        self.lm = INSTRUCTOR('hkunlp/instructor-large', device=self.device)
         self.classifier = nn.Linear(768, n_classes, device=self.device, dtype=torch.float32)
         self.n_training_steps = n_training_steps
         self.n_warmup_steps = n_warmup_steps
@@ -232,7 +232,7 @@ class VicunaModel(pl.LightningModule):
         embeddings = torch.tensor(np.asarray(response), device=device, dtype=torch.float32)
         return embeddings
 
-    def vicuna_forward(self, sentences: list):
+    def instructor_forward(self, sentences: list):
         prompts: List[List] = [["Represent the News titles for event clustering: ", s] for s in sentences]
         embeddings = self.lm.encode(prompts)
         return embeddings
@@ -241,7 +241,7 @@ class VicunaModel(pl.LightningModule):
         labels = torch.tensor(labels, device=self.device)
         if is_contrastive and is_training:
             loss = 0
-            encoded_features = self.vicuna_forward(sentences)
+            encoded_features = self.instructor_forward(sentences)
             normalized_features = self.normalize(encoded_features)
             logits = self.classifier(normalized_features)
             output = torch.sigmoid(logits)

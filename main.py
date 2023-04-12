@@ -4,7 +4,7 @@ import wandb
 from data_loader import MavenDataModule
 from pytorch_lightning.callbacks import ModelCheckpoint, EarlyStopping
 from pytorch_lightning.loggers import WandbLogger
-from models.multi_label_classifier import MavenModel, VicunaModel
+from models.multi_label_classifier import MavenModel, InstructorModel
 
 if __name__ == "__main__":
     torch.cuda.empty_cache()
