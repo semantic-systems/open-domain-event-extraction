@@ -399,19 +399,21 @@ class InstructorModel(pl.LightningModule):
 class SentenceTransformersModel(InstructorModel):
     def __init__(self, n_classes: int):
         super(SentenceTransformersModel, self).__init__(n_classes)
-        self.tokenizer = AutoTokenizer.from_pretrained('sentence-transformers/all-MiniLM-L6-v2', device=self.device)
-        self.lm = AutoModel.from_pretrained('sentence-transformers/all-MiniLM-L6-v2', device=self.device)
+        self.tokenizer = AutoTokenizer.from_pretrained('sentence-transformers/all-MiniLM-L6-v2')
+        self.lm = AutoModel.from_pretrained('sentence-transformers/all-MiniLM-L6-v2')
         self.classifier = nn.Linear(self.lm.config.hidden_size, n_classes, device=self.device, dtype=torch.float32)
 
     def forward(self, sentences: list, labels=None, is_training=True, is_contrastive=True):
+        loss = 0
         labels = torch.tensor(labels, device=self.device)
+        features = self.tokenizer.batch_encode_plus(sentences, padding='max_length', truncation=True, return_attention_mask=True, return_tensors='pt', return_token_type_ids=False)
+        encoded_features = self.lm(features["input_ids"].to(device=self.device),
+                                   features["attention_mask"].to(device=self.device), labels.to(device=self.device))
+        encoded_features = self.mean_pooling(encoded_features, features['attention_mask'])
+        # normalized_features = F.normalize(encoded_features, p=2, dim=1)
+        logits = self.classifier(encoded_features)
+
         if is_contrastive and is_training:
-            loss = 0
-            tokenized_features = self.tokenizer(sentences, padding=True, truncation=True, return_tensors='pt')
-            encoded_features = self.lm(**tokenized_features)
-            encoded_features = self.mean_pooling(encoded_features, tokenized_features['attention_mask'])
-            # normalized_features = F.normalize(encoded_features, p=2, dim=1)
-            logits = self.classifier(encoded_features)
             multiview_sentences, multiview_labels = self.get_multiview_batch(logits, labels)
             contrastive_loss = self.contrastive_loss(multiview_sentences, multiview_labels)
             self.log("train/contrastive loss", contrastive_loss)
@@ -419,12 +421,6 @@ class SentenceTransformersModel(InstructorModel):
                 loss = self.loss(logits, labels)
             return loss + 0.5*contrastive_loss, torch.sigmoid(logits)
         else:
-            tokenized_features = self.tokenizer(sentences, padding=True, truncation=True, return_tensors='pt')
-            encoded_features = self.lm(**tokenized_features)
-            encoded_features = self.mean_pooling(encoded_features, tokenized_features['attention_mask'])
-            # normalized_features = F.normalize(encoded_features, p=2, dim=1)
-            logits = self.classifier(encoded_features)
-            loss = 0
             if labels is not None:
                 loss = self.loss(logits, labels)
             return loss, torch.sigmoid(logits)
