@@ -28,12 +28,13 @@ if __name__ == "__main__":
         mode="min"
     )
     logger = WandbLogger(project="maven", name="miniLM/SCL-normalized")
-    early_stopping_callback = EarlyStopping(monitor='val_loss', patience=10)
+    early_stopping_callback = EarlyStopping(monitor='val_loss', patience=15)
 
     trainer = pl.Trainer(
         logger=logger,
+        max_epochs=200,
+        # callbacks=[early_stopping_callback],
         callbacks=[early_stopping_callback, checkpoint_callback],
-        max_epochs=100,
         accelerator='gpu',
         devices=[0],
         fast_dev_run=False

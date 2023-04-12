@@ -292,7 +292,8 @@ class InstructorModel(pl.LightningModule):
         return augmented_text, augmented_label
 
     def training_step(self, batch, batch_idx):
-        sentences, labels = batch #self.augment(batch)
+        # sentences, labels = batch
+        sentences, labels = self.augment(batch)
         loss, outputs = self.forward(sentences, labels, is_contrastive=True)
         self.log("train_loss", loss, prog_bar=True, logger=True)
         return {"loss": loss, "predictions": outputs, "labels": labels}

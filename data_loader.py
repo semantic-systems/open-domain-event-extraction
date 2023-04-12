@@ -58,7 +58,8 @@ class MavenMultiLabelClassificationDataset(Dataset):
         return sentence, label
 
 
-DATA_PATH = "/export/home/huang/Projects/data/MAVEN/" # "../../data/MAVEN/"
+DATA_PATH = "/export/home/huang/Projects/data/MAVEN/"
+# DATA_PATH = "../../data/MAVEN/"
 
 
 class MavenDataModule(pl.LightningDataModule):
