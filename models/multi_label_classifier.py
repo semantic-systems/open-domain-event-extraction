@@ -200,7 +200,7 @@ class VicunaModel(pl.LightningModule):
     def __init__(self, n_classes: int, n_training_steps=None,
                  n_warmup_steps=None):
         super().__init__()
-        self.classifier = nn.Linear(768, n_classes, device=self.device)
+        self.classifier = nn.Linear(768, n_classes, device=self.device, dtype=torch.float16)
         self.n_training_steps = n_training_steps
         self.n_warmup_steps = n_warmup_steps
         self.loss = nn.BCELoss()
@@ -228,7 +228,7 @@ class VicunaModel(pl.LightningModule):
         }
 
         response = requests.post('https://instructor.skynet.coypu.org', headers=headers, json=payload).json().get("embeddings", None)
-        embeddings = torch.tensor(np.asarray(response), device=device)
+        embeddings = torch.tensor(np.asarray(response), device=device, dtype=torch.float16)
         return embeddings
 
     def forward(self, sentences: list, labels=None, is_training=True, is_contrastive=True):
