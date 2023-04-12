@@ -4,7 +4,7 @@ import wandb
 from data_loader import MavenDataModule
 from pytorch_lightning.callbacks import ModelCheckpoint, EarlyStopping
 from pytorch_lightning.loggers import WandbLogger
-from models.multi_label_classifier import MavenModel, InstructorModel
+from models.multi_label_classifier import MavenModel, InstructorModel, SentenceTransformersModel
 
 if __name__ == "__main__":
     torch.cuda.empty_cache()
@@ -15,7 +15,7 @@ if __name__ == "__main__":
     wandb.login()
 
     data_module = MavenDataModule()
-    model = InstructorModel(n_classes=169)#MavenModel(n_classes=169, pretrained_model_name_or_path=BERT_MODEL_NAME, n_training_steps=100, n_warmup_steps=20)
+    model = SentenceTransformersModel(n_classes=169)#MavenModel(n_classes=169, pretrained_model_name_or_path=BERT_MODEL_NAME, n_training_steps=100, n_warmup_steps=20)
     checkpoint_callback = ModelCheckpoint(
         dirpath="checkpoints",
         filename="instructor-best-checkpoint",
@@ -24,7 +24,7 @@ if __name__ == "__main__":
         monitor="val_loss",
         mode="min"
     )
-    logger = WandbLogger(project="maven", name="instructor/BCE-local-unnormalized")
+    logger = WandbLogger(project="maven", name="miniLM/BCE-unnormalized")
     early_stopping_callback = EarlyStopping(monitor='val_loss', patience=10)
 
     trainer = pl.Trainer(

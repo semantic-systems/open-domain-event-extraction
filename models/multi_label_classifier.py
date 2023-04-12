@@ -1,5 +1,4 @@
-import abc
-from typing import Optional, List
+from typing import List
 
 import numpy as np
 import pytorch_lightning as pl
@@ -12,6 +11,8 @@ import requests
 import wandb
 from losses import HMLC
 from InstructorEmbedding import INSTRUCTOR
+from sentence_transformers import SentenceTransformer
+
 
 NUM_AUGMENTATION = 1
 
@@ -200,7 +201,7 @@ class InstructorModel(pl.LightningModule):
     def __init__(self, n_classes: int, n_training_steps=None,
                  n_warmup_steps=None):
         super().__init__()
-        self.lm = INSTRUCTOR('hkunlp/instructor-large')
+        self.lm = SentenceTransformer('sentence-transformers/all-MiniLM-L6-v2') #INSTRUCTOR('hkunlp/instructor-large')
         self.classifier = nn.Linear(768, n_classes, device=self.device, dtype=torch.float32)
         self.n_training_steps = n_training_steps
         self.n_warmup_steps = n_warmup_steps
@@ -390,6 +391,18 @@ class InstructorModel(pl.LightningModule):
             #     interval='step'
             # )
         )
+
+
+class SentenceTransformersModel(InstructorModel):
+    def __init__(self, n_classes: int, n_training_steps=None,
+                 n_warmup_steps=None):
+        super(SentenceTransformersModel).__init__(n_classes, n_training_steps, n_warmup_steps)
+        self.lm = SentenceTransformer('sentence-transformers/all-MiniLM-L6-v2')
+        self.classifier = nn.Linear(384, n_classes, device=self.device, dtype=torch.float32)
+
+    def instructor_forward(self, sentences: list):
+        embeddings = self.lm.encode(sentences)
+        return embeddings
 
 
 if __name__ == "__main__":
