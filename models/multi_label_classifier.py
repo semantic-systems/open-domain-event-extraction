@@ -227,7 +227,7 @@ class VicunaModel(pl.LightningModule):
             "key": "B48KSZDAXDQT1NX2"
         }
 
-        response = requests.post('https://instructor.skynet.coypu.org', headers=headers, json=payload).get("embeddings", None)
+        response = requests.post('https://instructor.skynet.coypu.org', headers=headers, json=payload).json().get("embeddings", None)
         embeddings = torch.tensor(np.asarray(response), device=device)
         return embeddings
 
