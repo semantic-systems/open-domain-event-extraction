@@ -238,8 +238,6 @@ class InstructorModel(pl.LightningModule):
         return embeddings
 
     def forward(self, sentences: list, labels=None, is_training=True, is_contrastive=True):
-        print(f"self.lm on device {self.lm.device}")
-        print(f"self.device is {self.device}")
         labels = torch.tensor(labels, device=self.device)
         if is_contrastive and is_training:
             loss = 0

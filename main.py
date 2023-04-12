@@ -16,7 +16,6 @@ if __name__ == "__main__":
 
     data_module = MavenDataModule()
     model = InstructorModel(n_classes=169)#MavenModel(n_classes=169, pretrained_model_name_or_path=BERT_MODEL_NAME, n_training_steps=100, n_warmup_steps=20)
-    print(f"model on {model.device}")
     checkpoint_callback = ModelCheckpoint(
         dirpath="checkpoints",
         filename="instructor-best-checkpoint",
