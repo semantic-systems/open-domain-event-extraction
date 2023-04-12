@@ -407,8 +407,11 @@ class SentenceTransformersModel(InstructorModel):
         loss = 0
         labels = torch.tensor(labels, device=self.device, dtype=torch.int32)
         features = self.tokenizer.batch_encode_plus(sentences, padding='max_length', truncation=True, return_attention_mask=True, return_tensors='pt', return_token_type_ids=False)
+        print(f"features[input_ids] with shape {features['input_ids'].shape}")
+        print(f"features[attention_mask] with shape {features['attention_mask'].shape}")
+        print(f"labels with shape {labels.shape}")
         encoded_features = self.lm(features["input_ids"].to(device=self.device),
-                                   features["attention_mask"].to(device=self.device), labels.to(device=self.device))
+                                   features["attention_mask"].to(device=self.device), labels)
         encoded_features = self.mean_pooling(encoded_features, features['attention_mask'])
         # normalized_features = F.normalize(encoded_features, p=2, dim=1)
         logits = self.classifier(encoded_features)
