@@ -21,13 +21,13 @@ if __name__ == "__main__":
     # model = MavenModel(n_classes=169, pretrained_model_name_or_path='roberta-base', n_training_steps=100, n_warmup_steps=20)
     checkpoint_callback = ModelCheckpoint(
         dirpath="checkpoints",
-        filename="miniLM-best-checkpoint",
+        filename="miniLM-normalized-scl-best-checkpoint",
         save_top_k=1,
         verbose=True,
         monitor="val_loss",
         mode="min"
     )
-    logger = WandbLogger(project="maven", name="miniLM/BCE-normalized")
+    logger = WandbLogger(project="maven", name="miniLM/SCL-normalized")
     early_stopping_callback = EarlyStopping(monitor='val_loss', patience=10)
 
     trainer = pl.Trainer(

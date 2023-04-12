@@ -13,10 +13,9 @@ import wandb
 from losses import HMLC
 from InstructorEmbedding import INSTRUCTOR
 from sentence_transformers import SentenceTransformer
-import torch.nn.functional as F
 
 
-NUM_AUGMENTATION = 1
+NUM_AUGMENTATION = 2
 
 
 class MavenModel(pl.LightningModule):
@@ -28,7 +27,7 @@ class MavenModel(pl.LightningModule):
         self.n_training_steps = n_training_steps
         self.n_warmup_steps = n_warmup_steps
         self.loss = nn.BCEWithLogitsLoss()
-        self.contrastive_loss = HMLC()
+        self.contrastive_loss = HMLC(temperature=0.07)
         self.auroc = torchmetrics.AUROC(task="multilabel", num_labels=169).to(self.device)
         self.accuracy = torchmetrics.classification.MultilabelAccuracy(num_labels=169).to(self.device)
         self.preci = torchmetrics.classification.MultilabelPrecision(num_labels=169).to(self.device)
@@ -208,7 +207,7 @@ class InstructorModel(pl.LightningModule):
         self.n_training_steps = n_training_steps
         self.n_warmup_steps = n_warmup_steps
         self.loss = nn.BCEWithLogitsLoss()
-        self.contrastive_loss = HMLC()
+        self.contrastive_loss = HMLC(temperature=0.07)
         self.auroc = torchmetrics.AUROC(task="multilabel", num_labels=169).to(self.device)
         self.accuracy = torchmetrics.classification.MultilabelAccuracy(num_labels=169).to(self.device)
         self.preci = torchmetrics.classification.MultilabelPrecision(num_labels=169).to(self.device)
@@ -294,7 +293,7 @@ class InstructorModel(pl.LightningModule):
 
     def training_step(self, batch, batch_idx):
         sentences, labels = batch #self.augment(batch)
-        loss, outputs = self.forward(sentences, labels, is_contrastive=False)
+        loss, outputs = self.forward(sentences, labels, is_contrastive=True)
         self.log("train_loss", loss, prog_bar=True, logger=True)
         return {"loss": loss, "predictions": outputs, "labels": labels}
 
