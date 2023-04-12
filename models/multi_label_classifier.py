@@ -201,7 +201,7 @@ class InstructorModel(pl.LightningModule):
     def __init__(self, n_classes: int, n_training_steps=None,
                  n_warmup_steps=None):
         super().__init__()
-        self.lm = SentenceTransformer('sentence-transformers/all-MiniLM-L6-v2') #INSTRUCTOR('hkunlp/instructor-large')
+        self.lm = INSTRUCTOR('hkunlp/instructor-large')
         self.classifier = nn.Linear(768, n_classes, device=self.device, dtype=torch.float32)
         self.n_training_steps = n_training_steps
         self.n_warmup_steps = n_warmup_steps
@@ -395,9 +395,9 @@ class InstructorModel(pl.LightningModule):
 
 class SentenceTransformersModel(InstructorModel):
     def __init__(self, n_classes: int):
-        super(SentenceTransformersModel).__init__(n_classes)
+        super(SentenceTransformersModel, self).__init__(n_classes)
         self.lm = SentenceTransformer('sentence-transformers/all-MiniLM-L6-v2')
-        self.classifier = nn.Linear(384, n_classes, device=self.device, dtype=torch.float32)
+        self.classifier = nn.Linear(self.lm.config.hidden_size, n_classes, device=self.device, dtype=torch.float32)
 
     def instructor_forward(self, sentences: list):
         embeddings = self.lm.encode(sentences)

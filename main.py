@@ -18,7 +18,7 @@ if __name__ == "__main__":
     model = SentenceTransformersModel(n_classes=169)#MavenModel(n_classes=169, pretrained_model_name_or_path=BERT_MODEL_NAME, n_training_steps=100, n_warmup_steps=20)
     checkpoint_callback = ModelCheckpoint(
         dirpath="checkpoints",
-        filename="instructor-best-checkpoint",
+        filename="sbert-best-checkpoint",
         save_top_k=1,
         verbose=True,
         monitor="val_loss",
