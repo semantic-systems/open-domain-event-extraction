@@ -4,8 +4,7 @@ import wandb
 from data_loader import MavenDataModule
 from pytorch_lightning.callbacks import ModelCheckpoint, EarlyStopping
 from pytorch_lightning.loggers import WandbLogger
-from models.multi_label_classifier import MavenModel
-
+from models.multi_label_classifier import MavenModel, VicunaModel
 
 if __name__ == "__main__":
     torch.cuda.empty_cache()
@@ -15,19 +14,18 @@ if __name__ == "__main__":
     pl.seed_everything(seed)
     wandb.login()
 
-    data_module = MavenDataModule(BERT_MODEL_NAME)
-    bert_model = MavenModel(n_classes=169, pretrained_model_name_or_path=BERT_MODEL_NAME, n_training_steps=100,
-                            n_warmup_steps=20)
+    data_module = MavenDataModule()
+    bert_model = VicunaModel(n_classes=169)#MavenModel(n_classes=169, pretrained_model_name_or_path=BERT_MODEL_NAME, n_training_steps=100, n_warmup_steps=20)
 
     checkpoint_callback = ModelCheckpoint(
         dirpath="checkpoints",
-        filename="best-checkpoint",
+        filename="vicuna-best-checkpoint",
         save_top_k=1,
         verbose=True,
         monitor="val_loss",
         mode="min"
     )
-    logger = WandbLogger(project="maven", name="BCE")
+    logger = WandbLogger(project="maven", name="vicuna/BCE")
     early_stopping_callback = EarlyStopping(monitor='val_loss', patience=10)
 
     trainer = pl.Trainer(

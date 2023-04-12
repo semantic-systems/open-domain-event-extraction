@@ -6,7 +6,6 @@ import torch
 import pandas as pd
 import ast
 from typing import Optional
-from transformers import RobertaTokenizer
 
 
 class MavenMultiLabelClassificationDataset(Dataset):
@@ -58,15 +57,16 @@ class MavenMultiLabelClassificationDataset(Dataset):
         label = self.labels[idx]
         return sentence, label
 
-DATA_PATH = "../../data/MAVEN/" # "/export/home/huang/Projects/data/MAVEN/"
+
+DATA_PATH = "/export/home/huang/Projects/data/MAVEN/"  # "../../data/MAVEN/"
+
 
 class MavenDataModule(pl.LightningDataModule):
 
-    def __init__(self, pretrained_model_name_or_path, data_path: Optional = DATA_PATH):
+    def __init__(self):
         super(MavenDataModule).__init__()
         self.prepare_data_per_node = True
         self._log_hyperparams = True
-        self.tokenizer = RobertaTokenizer.from_pretrained(pretrained_model_name_or_path)
 
     def prepare_data(self):
         """
