@@ -15,11 +15,11 @@ if __name__ == "__main__":
     wandb.login()
 
     data_module = MavenDataModule()
-    bert_model = InstructorModel(n_classes=169)#MavenModel(n_classes=169, pretrained_model_name_or_path=BERT_MODEL_NAME, n_training_steps=100, n_warmup_steps=20)
-
+    model = InstructorModel(n_classes=169)#MavenModel(n_classes=169, pretrained_model_name_or_path=BERT_MODEL_NAME, n_training_steps=100, n_warmup_steps=20)
+    print(f"model on {model.device}")
     checkpoint_callback = ModelCheckpoint(
         dirpath="checkpoints",
-        filename="vicuna-best-checkpoint",
+        filename="instructor-best-checkpoint",
         save_top_k=1,
         verbose=True,
         monitor="val_loss",
@@ -36,7 +36,7 @@ if __name__ == "__main__":
         devices=[0],
         fast_dev_run=False
     )
-    trainer.fit(bert_model, datamodule=data_module)
+    trainer.fit(model, datamodule=data_module)
     test_result = trainer.test(datamodule=data_module, ckpt_path='best')
     wandb.finish()
     torch.cuda.empty_cache()
