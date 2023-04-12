@@ -2,7 +2,8 @@ from typing import List
 
 import numpy as np
 import pytorch_lightning as pl
-from transformers import RobertaModel, AdamW, get_linear_schedule_with_warmup, RobertaTokenizer
+from transformers import RobertaModel, AdamW, get_linear_schedule_with_warmup, RobertaTokenizer, AutoTokenizer, \
+    AutoModel
 import torch
 import torch.nn as nn
 import torchmetrics
@@ -12,6 +13,7 @@ import wandb
 from losses import HMLC
 from InstructorEmbedding import INSTRUCTOR
 from sentence_transformers import SentenceTransformer
+import torch.nn.functional as F
 
 
 NUM_AUGMENTATION = 1
@@ -252,7 +254,8 @@ class InstructorModel(pl.LightningModule):
                 loss = self.loss(logits, labels)
             return loss + 0.5*contrastive_loss, torch.sigmoid(logits)
         else:
-            encoded_features = self.api_call(sentences, device=self.device)
+            encoded_features = self.instructor_forward(sentences)
+            # normalized_features = self.normalize(encoded_features)
             logits = self.classifier(encoded_features)
             loss = 0
             if labels is not None:
@@ -396,12 +399,41 @@ class InstructorModel(pl.LightningModule):
 class SentenceTransformersModel(InstructorModel):
     def __init__(self, n_classes: int):
         super(SentenceTransformersModel, self).__init__(n_classes)
-        self.lm = SentenceTransformer('sentence-transformers/all-MiniLM-L6-v2', device="cuda:0")
-        self.classifier = nn.Linear(768, n_classes, device=self.device, dtype=torch.float32)
+        self.tokenizer = AutoTokenizer.from_pretrained('sentence-transformers/all-MiniLM-L6-v2', device=self.device)
+        self.lm = AutoModel.from_pretrained('sentence-transformers/all-MiniLM-L6-v2', device=self.device)
+        self.classifier = nn.Linear(self.lm.config.hidden_size, n_classes, device=self.device, dtype=torch.float32)
 
-    def instructor_forward(self, sentences: list):
-        embeddings = self.lm.encode(sentences)
-        return embeddings
+    def forward(self, sentences: list, labels=None, is_training=True, is_contrastive=True):
+        labels = torch.tensor(labels, device=self.device)
+        if is_contrastive and is_training:
+            loss = 0
+            tokenized_features = self.tokenizer(sentences, padding=True, truncation=True, return_tensors='pt')
+            encoded_features = self.lm(**tokenized_features)
+            encoded_features = self.mean_pooling(encoded_features, tokenized_features['attention_mask'])
+            # normalized_features = F.normalize(encoded_features, p=2, dim=1)
+            logits = self.classifier(encoded_features)
+            multiview_sentences, multiview_labels = self.get_multiview_batch(logits, labels)
+            contrastive_loss = self.contrastive_loss(multiview_sentences, multiview_labels)
+            self.log("train/contrastive loss", contrastive_loss)
+            if labels is not None:
+                loss = self.loss(logits, labels)
+            return loss + 0.5*contrastive_loss, torch.sigmoid(logits)
+        else:
+            tokenized_features = self.tokenizer(sentences, padding=True, truncation=True, return_tensors='pt')
+            encoded_features = self.lm(**tokenized_features)
+            encoded_features = self.mean_pooling(encoded_features, tokenized_features['attention_mask'])
+            # normalized_features = F.normalize(encoded_features, p=2, dim=1)
+            logits = self.classifier(encoded_features)
+            loss = 0
+            if labels is not None:
+                loss = self.loss(logits, labels)
+            return loss, torch.sigmoid(logits)
+
+    @staticmethod
+    def mean_pooling(model_output, attention_mask):
+        token_embeddings = model_output[0]  # First element of model_output contains all token embeddings
+        input_mask_expanded = attention_mask.unsqueeze(-1).expand(token_embeddings.size()).float()
+        return torch.sum(token_embeddings * input_mask_expanded, 1) / torch.clamp(input_mask_expanded.sum(1), min=1e-9)
 
 
 if __name__ == "__main__":
