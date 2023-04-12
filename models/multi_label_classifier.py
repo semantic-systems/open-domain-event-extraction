@@ -200,7 +200,7 @@ class InstructorModel(pl.LightningModule):
     def __init__(self, n_classes: int, n_training_steps=None,
                  n_warmup_steps=None):
         super().__init__()
-        self.lm = INSTRUCTOR('hkunlp/instructor-large', device=self.device)
+        self.lm = INSTRUCTOR('hkunlp/instructor-large')
         self.classifier = nn.Linear(768, n_classes, device=self.device, dtype=torch.float32)
         self.n_training_steps = n_training_steps
         self.n_warmup_steps = n_warmup_steps
@@ -238,6 +238,8 @@ class InstructorModel(pl.LightningModule):
         return embeddings
 
     def forward(self, sentences: list, labels=None, is_training=True, is_contrastive=True):
+        print(f"self.lm on device {self.lm.device}")
+        print(f"self.device is {self.device}")
         labels = torch.tensor(labels, device=self.device)
         if is_contrastive and is_training:
             loss = 0
