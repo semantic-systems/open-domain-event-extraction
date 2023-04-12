@@ -15,7 +15,7 @@ if __name__ == "__main__":
     wandb.login()
 
     data_module = MavenDataModule()
-    bert_model = VicunaModel(n_classes=169)#MavenModel(n_classes=169, pretrained_model_name_or_path=BERT_MODEL_NAME, n_training_steps=100, n_warmup_steps=20)
+    bert_model = InstructorModel(n_classes=169)#MavenModel(n_classes=169, pretrained_model_name_or_path=BERT_MODEL_NAME, n_training_steps=100, n_warmup_steps=20)
 
     checkpoint_callback = ModelCheckpoint(
         dirpath="checkpoints",
@@ -25,7 +25,7 @@ if __name__ == "__main__":
         monitor="val_loss",
         mode="min"
     )
-    logger = WandbLogger(project="maven", name="vicuna/BCE-local")
+    logger = WandbLogger(project="maven", name="instructor/BCE-local")
     early_stopping_callback = EarlyStopping(monitor='val_loss', patience=10)
 
     trainer = pl.Trainer(
