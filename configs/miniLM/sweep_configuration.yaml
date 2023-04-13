@@ -4,15 +4,29 @@ metric:
   name: validation/f1
 parameters:
   alpha:
-    distribution: uniform
-    max: 1
-    min: 0
+    values:
+      - 0.001
+      - 0.01
+      - 0.1
+      - 0.3
+      - 0.5
+      - 0.7
+      - 0.9
+      - 1
   lr:
-    distribution: uniform
-    max: 1e-04
-    min: 1e-06
+    values:
+      - 1e-04
+      - 1e-05
+      - 1e-06
   temperature:
-    distribution: uniform
-    max: 20
-    min: 0.03
+    values:
+      - 0.001
+      - 0.01
+      - 0.05
+      - 0.1
+      - 0.3
+      - 0.5
+      - 0.7
+      - 0.9
+      - 2
 program: main.py
