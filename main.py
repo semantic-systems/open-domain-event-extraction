@@ -14,8 +14,7 @@ def main():
     seed = 42
     torch.set_float32_matmul_precision('medium')
     pl.seed_everything(seed)
-    
-    wandb.init()
+
     lr = wandb.config.lr
     temperature = wandb.config.temperature
     alpha = wandb.config.alpha
@@ -56,11 +55,12 @@ def main_sweep():
     with open("./configs/miniLM/sweep_configuration.yaml", "r") as f:
         sweep_configuration = yaml.safe_load(f)
     wandb.login()
+    wandb.init()
     sweep_id = wandb.sweep(sweep=sweep_configuration, project='maven')
     wandb.agent(sweep_id, function=main, count=1)
     wandb.finish()
 
 
 if __name__ == "__main__":
-    main()
+    main_sweep()
 
