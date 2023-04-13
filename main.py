@@ -14,9 +14,9 @@ def main():
     seed = 42
     torch.set_float32_matmul_precision('medium')
     pl.seed_everything(seed)
-    lr = 1e-04 #wandb.config.lr
-    temperature = 0.1 #wandb.config.temperature
-    alpha = 0.9 #wandb.config.alpha
+    lr = wandb.config.lr
+    temperature = wandb.config.temperature
+    alpha = wandb.config.alpha
 
     data_module = MavenDataModule()
 
@@ -32,7 +32,7 @@ def main():
         monitor="validation/f1",
         mode="max"
     )
-    logger = WandbLogger(project="maven", name="miniLM/SCL/large-alpha")
+    logger = WandbLogger(project="maven", name="miniLM/SCL/sweep")
     early_stopping_callback = EarlyStopping(monitor='validation/f1', patience=5, mode="max")
 
     trainer = pl.Trainer(
