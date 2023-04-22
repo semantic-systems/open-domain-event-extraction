@@ -14,7 +14,7 @@ def main():
     seed = 42
     torch.set_float32_matmul_precision('medium')
     pl.seed_everything(seed)
-    
+
     wandb.init()
     lr = wandb.config.lr
     temperature = wandb.config.temperature
@@ -35,7 +35,7 @@ def main():
         mode="max"
     )
     logger = WandbLogger(project="maven", name="miniLM/SCL/sweep")
-    early_stopping_callback = EarlyStopping(monitor='validation/f1', patience=5, mode="max")
+    early_stopping_callback = EarlyStopping(monitor='validation/f1', patience=5, mode="max", min_delta=0.05)
 
     trainer = pl.Trainer(
         logger=logger,
@@ -57,7 +57,7 @@ def main_sweep():
         sweep_configuration = yaml.safe_load(f)
     wandb.login()
     sweep_id = wandb.sweep(sweep=sweep_configuration, project='maven')
-    wandb.agent(sweep_id, function=main, count=1)
+    wandb.agent(sweep_id, function=main, count=100)
     wandb.finish()
 
 
