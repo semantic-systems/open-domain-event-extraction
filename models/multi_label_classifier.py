@@ -411,7 +411,7 @@ class SentenceTransformersModel(InstructorModel):
     def __init__(self, n_classes: int, lr: float, temperature: float, alpha: float):
         super(SentenceTransformersModel, self).__init__(n_classes, lr, temperature, alpha)
         self.lm = SentenceTransformer('sentence-transformers/all-MiniLM-L6-v2')
-        self.classifier = nn.Linear(384, n_classes, device=self.device, dtype=torch.float32)
+        # self.classifier = nn.Linear(384, n_classes, device=self.device, dtype=torch.float32)
         self.loss = nn.CrossEntropyLoss()
         self.num_clusters = 20
         self.clustering_model = DBSCAN(eps=0.3, min_samples=3, metric="cosine")
@@ -427,7 +427,7 @@ class SentenceTransformersModel(InstructorModel):
         sentence_embeddings = self.lm.encode(sentences, normalize_embeddings=True, convert_to_tensor=True)
         embeddings_on_cpu = sentence_embeddings.cpu().numpy()
         cluster_labels = self.clustering_model.fit_predict(embeddings_on_cpu)
-        self.log(f"{mode}/num. clusters", len(set(cluster_labels)))
+        self.log(f"{mode}/num. clusters", int(len(set(cluster_labels))))
         # predictions = self.infer_labels_from_clusters(cluster_labels, labels_on_cpu)
 
         if is_contrastive and mode in ["train", "valid"]:
@@ -438,13 +438,13 @@ class SentenceTransformersModel(InstructorModel):
             multiview_sentences, multiview_labels = self.get_multiview_batch(sentence_embeddings, labels.flatten())
             contrastive_loss = self.contrastive_loss(multiview_sentences, multiview_labels)
             self.log(f"{mode}/contrastive loss", contrastive_loss)
-            return self.alpha*contrastive_loss, predictions
+            return self.alpha*contrastive_loss
         else:
-            cluster_loss = silhouette_score(sentence_embeddings.cpu().numpy(), labels_np)
-            self.log(f"{mode}/silhouette_score", cluster_loss)
-            loss = self.loss(sentence_embeddings, labels.long())
-            self.log(f"{mode}/ce loss", loss)
-            return loss, sentence_embeddings.argmax(0)
+            # cluster_loss = silhouette_score(sentence_embeddings.cpu().numpy(), labels_np)
+            # self.log(f"{mode}/silhouette_score", cluster_loss)
+            # loss = self.loss(sentence_embeddings, labels.long())
+            # self.log(f"{mode}/ce loss", loss)
+            return 0
 
     def infer_labels_from_clusters(self, cluster_labels, true_labels):
         for i in set(cluster_labels):
@@ -472,21 +472,21 @@ class SentenceTransformersModel(InstructorModel):
 
     def training_step(self, batch, batch_idx):
         sentences, labels = self.augment(batch)
-        loss, outputs = self.forward(sentences, labels, is_contrastive=True, mode="train")
+        loss = self.forward(sentences, labels, is_contrastive=True, mode="train")
         self.log("train_loss", loss, prog_bar=True, logger=True)
-        return {"loss": loss, "predictions": outputs, "labels": labels.flatten()}
+        return {"loss": loss, "labels": labels.flatten()}
 
     def validation_step(self, batch, batch_idx):
         sentences, labels = self.augment(batch)
-        loss, outputs = self.forward(sentences, labels, is_training=False, is_contrastive=True, mode="valid")
+        loss = self.forward(sentences, labels, is_training=False, is_contrastive=True, mode="valid")
         self.log("val_loss", loss, prog_bar=True, logger=True)
-        return {"loss": loss, "predictions": outputs, "labels": labels.flatten()}
+        return {"loss": loss, "labels": labels.flatten()}
 
     def test_step(self, batch, batch_idx):
         sentences, labels = batch
-        loss, outputs = self.forward(sentences, labels, is_training=False, is_contrastive=False, mode="test")
+        loss = self.forward(sentences, labels, is_training=False, is_contrastive=False, mode="test")
         self.log("test_loss", loss, prog_bar=True, logger=True)
-        return {"loss": loss, "predictions": outputs, "labels": labels.flatten()}
+        return {"loss": loss, "labels": labels.flatten()}
 
     def evaluate(self, outputs):
         labels = []
@@ -505,25 +505,28 @@ class SentenceTransformersModel(InstructorModel):
         return acc, preci, recall, f1
 
     def training_epoch_end(self, outputs):
-        acc, preci, recall, f1 = self.evaluate(outputs)
-        self.log("train/acc", acc, prog_bar=True, logger=True, on_epoch=True)
-        self.log("train/preci", preci, prog_bar=True, logger=True, on_epoch=True)
-        self.log("train/recall", recall, prog_bar=True, logger=True, on_epoch=True)
-        self.log("train/f1", f1, prog_bar=True, logger=True, on_epoch=True)
+        # acc, preci, recall, f1 = self.evaluate(outputs)
+        # self.log("train/acc", acc, prog_bar=True, logger=True, on_epoch=True)
+        # self.log("train/preci", preci, prog_bar=True, logger=True, on_epoch=True)
+        # self.log("train/recall", recall, prog_bar=True, logger=True, on_epoch=True)
+        # self.log("train/f1", f1, prog_bar=True, logger=True, on_epoch=True)
+        pass
 
     def validation_epoch_end(self, outputs):
-        acc, preci, recall, f1 = self.evaluate(outputs)
-        self.log("validation/acc", acc, prog_bar=True, logger=True)
-        self.log("validation/preci", preci, prog_bar=True, logger=True)
-        self.log("validation/recall", recall, prog_bar=True, logger=True)
-        self.log("validation/f1", f1, prog_bar=True, logger=True)
+        # acc, preci, recall, f1 = self.evaluate(outputs)
+        # self.log("validation/acc", acc, prog_bar=True, logger=True)
+        # self.log("validation/preci", preci, prog_bar=True, logger=True)
+        # self.log("validation/recall", recall, prog_bar=True, logger=True)
+        # self.log("validation/f1", f1, prog_bar=True, logger=True)
+        pass
 
     def test_epoch_end(self, outputs):
-        acc, preci, recall, f1 = self.evaluate(outputs)
-        self.log("test/acc", acc, prog_bar=True, logger=True)
-        self.log("test/preci", preci, prog_bar=True, logger=True)
-        self.log("test/recall", recall, prog_bar=True, logger=True)
-        self.log("test/f1", f1, prog_bar=True, logger=True)
+        # acc, preci, recall, f1 = self.evaluate(outputs)
+        # self.log("test/acc", acc, prog_bar=True, logger=True)
+        # self.log("test/preci", preci, prog_bar=True, logger=True)
+        # self.log("test/recall", recall, prog_bar=True, logger=True)
+        # self.log("test/f1", f1, prog_bar=True, logger=True)
+        pass
 
 
 if __name__ == "__main__":

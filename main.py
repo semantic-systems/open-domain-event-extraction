@@ -44,7 +44,7 @@ def main():
         # callbacks=[early_stopping_callback, checkpoint_callback],
         # accelerator='gpu',
         # devices=[0],
-        fast_dev_run=False
+        fast_dev_run=True
     )
     trainer.fit(model, datamodule=data_module)
     # trainer.test(datamodule=data_module, ckpt_path='best')
