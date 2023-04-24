@@ -1,11 +1,15 @@
 from pathlib import Path
 import json
+
+from datasets import load_dataset
 from torch.utils.data import random_split, DataLoader, Dataset
 import pytorch_lightning as pl
 import torch
 import pandas as pd
 import ast
 from typing import Optional
+
+from transformers import AutoTokenizer
 
 
 class MavenMultiLabelClassificationDataset(Dataset):
@@ -92,3 +96,40 @@ class MavenDataModule(pl.LightningDataModule):
 
     def test_dataloader(self):
         return DataLoader(self.test, batch_size=64, num_workers=8)
+
+
+class TweetEvalDataModule(pl.LightningDataModule):
+
+    def __init__(self):
+        super(TweetEvalDataModule, self).__init__()
+        self.prepare_data_per_node = True
+        self._log_hyperparams = True
+
+    def prepare_data(self):
+
+        self.train = load_dataset("tweet_eval", "emoji", split="train")
+        # self.train = self.train.map(
+        #     lambda e: tokenizer(e['text'], truncation=True, padding='max_length', return_tensors='pt', return_token_type_ids=False), batched=True)
+        self.train.set_format(type='pandas', columns=['text', 'label'])
+
+        self.validation = load_dataset("tweet_eval", "emoji", split="validation")
+        # self.validation = self.validation.map(
+        #     lambda e: tokenizer(e['text'], truncation=True, padding='max_length', return_tensors='pt', return_token_type_ids=False), batched=True)
+        self.validation.set_format(type='pandas', columns=['text', 'label'])
+
+        self.test = load_dataset("tweet_eval", "emoji", split="test")
+        # self.test = self.test.map(
+        #     lambda e: tokenizer(e['text'], truncation=True, padding='max_length', return_tensors='pt', return_token_type_ids=False), batched=True)
+        self.test.set_format(type='pandas', columns=['text', 'label'])
+
+    def setup(self, stage: Optional[str] = None):
+        pass
+
+    def train_dataloader(self):
+        return DataLoader(self.train, batch_size=32, num_workers=8)
+
+    def val_dataloader(self):
+        return DataLoader(self.validation, batch_size=32, num_workers=8)
+
+    def test_dataloader(self):
+        return DataLoader(self.test, batch_size=32, num_workers=8)

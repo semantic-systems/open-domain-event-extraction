@@ -2,7 +2,7 @@ import os, yaml
 import pytorch_lightning as pl
 import torch
 import wandb
-from data_loader import MavenDataModule
+from data_loader import MavenDataModule, TweetEvalDataModule
 from pytorch_lightning.callbacks import ModelCheckpoint, EarlyStopping
 from pytorch_lightning.loggers import WandbLogger
 from models.multi_label_classifier import MavenModel, InstructorModel, SentenceTransformersModel
@@ -16,51 +16,51 @@ def main():
     pl.seed_everything(seed)
 
     wandb.init()
-    lr = wandb.config.lr
-    temperature = wandb.config.temperature
-    alpha = wandb.config.alpha
+    lr = 0.00001#wandb.config.lr
+    temperature = 0.03#wandb.config.temperature
+    alpha = 1 # wandb.config.alpha
 
-    data_module = MavenDataModule()
+    data_module = TweetEvalDataModule()
 
-    model = SentenceTransformersModel(n_classes=169, lr=lr, temperature=temperature, alpha=alpha)
+    model = SentenceTransformersModel(n_classes=20, lr=lr, temperature=temperature, alpha=alpha)
     # model = InstructorModel(n_classes=169, lr=lr, temperature=temperature, alpha=alpha)
     # model = MavenModel(n_classes=169, lr=lr, temperature=temperature, alpha=alpha)
 
     checkpoint_callback = ModelCheckpoint(
         dirpath="checkpoints",
-        filename="miniLM-scl-best-checkpoint",
+        filename="emoji-best-checkpoint",
         save_top_k=1,
         verbose=True,
-        monitor="validation/f1",
-        mode="max"
+        monitor="validation/loss",
+        mode="min"
     )
-    logger = WandbLogger(project="maven", name="miniLM/SCL/sweep")
-    early_stopping_callback = EarlyStopping(monitor='validation/f1', patience=5, mode="max", min_delta=0.05)
+    logger = WandbLogger(project="single-label", name="miniLM/normalized/sweep")
+    early_stopping_callback = EarlyStopping(monitor='validation/loss', patience=15, mode="min", min_delta=0)
 
     trainer = pl.Trainer(
         logger=logger,
         max_epochs=100,
-        # callbacks=[early_stopping_callback],
-        callbacks=[early_stopping_callback, checkpoint_callback],
-        accelerator='gpu',
-        devices=[0],
+        callbacks=[early_stopping_callback],
+        # callbacks=[early_stopping_callback, checkpoint_callback],
+        # accelerator='gpu',
+        # devices=[0],
         fast_dev_run=False
     )
     trainer.fit(model, datamodule=data_module)
-    trainer.test(datamodule=data_module, ckpt_path='best')
+    # trainer.test(datamodule=data_module, ckpt_path='best')
     torch.cuda.empty_cache()
     print("Jobs done.")
 
 
 def main_sweep():
-    with open("./configs/miniLM/sweep_configuration.yaml", "r") as f:
+    with open("configs/miniLM/emoji.yaml", "r") as f:
         sweep_configuration = yaml.safe_load(f)
     wandb.login()
-    sweep_id = wandb.sweep(sweep=sweep_configuration, project='maven')
-    wandb.agent(sweep_id, function=main, count=100)
+    sweep_id = wandb.sweep(sweep=sweep_configuration, project='single-label')
+    wandb.agent(sweep_id, function=main, count=1)
     wandb.finish()
 
 
 if __name__ == "__main__":
-    main_sweep()
-
+    # main_sweep()
+    main()

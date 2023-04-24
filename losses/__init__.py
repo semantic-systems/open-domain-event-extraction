@@ -1,1 +1,1 @@
-from losses.supervised_contrastive_loss import HMLC
+from losses.supervised_contrastive_loss import HMLC, SupervisedContrastiveLoss

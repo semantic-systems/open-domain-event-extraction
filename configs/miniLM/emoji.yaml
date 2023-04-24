@@ -1,0 +1,18 @@
+method: bayes
+metric:
+  goal: minimize
+  name: validation/loss
+parameters:
+  lr:
+    values:
+      - 1e-04
+      - 1e-05
+      - 1e-06
+  temperature:
+    values:
+      - 0.001
+      - 0.01
+      - 0.1
+      - 0.3
+      - 0.5
+program: main.py

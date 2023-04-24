@@ -10,9 +10,13 @@ import torchmetrics
 import json
 import requests
 import wandb
-from losses import HMLC
+from losses import HMLC, SupervisedContrastiveLoss
 from InstructorEmbedding import INSTRUCTOR
+from sklearn.cluster import KMeans, DBSCAN
+from sklearn.metrics import silhouette_score
+from sklearn.metrics.cluster import adjusted_mutual_info_score, adjusted_rand_score
 from sentence_transformers import SentenceTransformer
+import emoji
 
 
 NUM_AUGMENTATION = 2
@@ -408,30 +412,118 @@ class SentenceTransformersModel(InstructorModel):
         super(SentenceTransformersModel, self).__init__(n_classes, lr, temperature, alpha)
         self.lm = SentenceTransformer('sentence-transformers/all-MiniLM-L6-v2')
         self.classifier = nn.Linear(384, n_classes, device=self.device, dtype=torch.float32)
+        self.loss = nn.CrossEntropyLoss()
+        self.num_clusters = 20
+        self.clustering_model = DBSCAN(eps=0.3, min_samples=3, metric="cosine")
+        self.accuracy = torchmetrics.classification.Accuracy(num_classes=n_classes, task="multiclass").to(self.device)
+        self.preci = torchmetrics.classification.Precision(num_classes=n_classes, task="multiclass").to(self.device)
+        self.recall = torchmetrics.classification.Recall(num_classes=n_classes, task="multiclass").to(self.device)
+        self.f1 = torchmetrics.classification.F1Score(num_classes=n_classes, task="multiclass").to(self.device)
+        self.contrastive_loss = SupervisedContrastiveLoss(temperature=self.temperature)
 
-    def forward(self, sentences: list, labels=None, is_training=True, is_contrastive=True):
-        loss = 0
+    def forward(self, sentences: list, labels=None, is_training=True, is_contrastive=True, mode="train"):
+        labels_on_cpu = labels.cpu().numpy().flatten()
         labels = torch.tensor(labels, device=self.device, dtype=torch.float32)
-        encoded_features = self.lm.encode(sentences, convert_to_tensor=True, normalize_embeddings=True)
-        logits = self.classifier(encoded_features)
+        sentence_embeddings = self.lm.encode(sentences, normalize_embeddings=True, convert_to_tensor=True)
+        embeddings_on_cpu = sentence_embeddings.cpu().numpy()
+        cluster_labels = self.clustering_model.fit_predict(embeddings_on_cpu)
+        self.log(f"{mode}/num. clusters", len(set(cluster_labels)))
+        # predictions = self.infer_labels_from_clusters(cluster_labels, labels_on_cpu)
 
-        if is_contrastive and is_training:
-            multiview_sentences, multiview_labels = self.get_multiview_batch(logits, labels)
+        if is_contrastive and mode in ["train", "valid"]:
+            nmi = adjusted_mutual_info_score(cluster_labels, labels_on_cpu)
+            self.log(f"{mode}/nmi", nmi)
+            ari = adjusted_rand_score(cluster_labels, labels_on_cpu)
+            self.log(f"{mode}/ari", ari)
+            multiview_sentences, multiview_labels = self.get_multiview_batch(sentence_embeddings, labels.flatten())
             contrastive_loss = self.contrastive_loss(multiview_sentences, multiview_labels)
-            self.log("train/contrastive loss", contrastive_loss)
-            if labels is not None:
-                loss = self.loss(logits, labels)
-            return loss + self.alpha*contrastive_loss, torch.sigmoid(logits)
+            self.log(f"{mode}/contrastive loss", contrastive_loss)
+            return self.alpha*contrastive_loss, predictions
         else:
-            if labels is not None:
-                loss = self.loss(logits, labels)
-            return loss, torch.sigmoid(logits)
+            cluster_loss = silhouette_score(sentence_embeddings.cpu().numpy(), labels_np)
+            self.log(f"{mode}/silhouette_score", cluster_loss)
+            loss = self.loss(sentence_embeddings, labels.long())
+            self.log(f"{mode}/ce loss", loss)
+            return loss, sentence_embeddings.argmax(0)
+
+    def infer_labels_from_clusters(self, cluster_labels, true_labels):
+        for i in set(cluster_labels):
+            index_for_cluster_i = np.argwhere(cluster_labels == i).flatten()
+            true_labels_for_cluster_i = true_labels[index_for_cluster_i].flatten()
+            unique_counts = np.unique(true_labels_for_cluster_i, return_counts=True)
+            max_label_count_for_cluster_i = max(unique_counts[1])
+            label_for_cluster_i = np.random.choice(np.argwhere(unique_counts[0] == max_label_count_for_cluster_i).flatten())
+        return []
 
     @staticmethod
-    def mean_pooling(model_output, attention_mask):
-        token_embeddings = model_output[0]  # First element of model_output contains all token embeddings
-        input_mask_expanded = attention_mask.unsqueeze(-1).expand(token_embeddings.size()).float()
-        return torch.sum(token_embeddings * input_mask_expanded, 1) / torch.clamp(input_mask_expanded.sum(1), min=1e-9)
+    def sq_loss_clusters(encode_output, centroids):
+        assert encode_output.size(1) == centroids.size(1), "Dimension mismatch"
+        return ((encode_output[:, None] - centroids[None]) ** 2).sum(2).min(1)[0].mean()
+
+    def augment(self, batch, num_return_sequences: int = NUM_AUGMENTATION):
+        augmented_text = []
+        sentences, labels = batch["text"], batch["label"]
+        sentences = list(sentences)
+        for n in range(num_return_sequences+1):
+            augmented_text.extend(sentences)
+        # label need to repeat n times + the original copy
+        augmented_label = labels.repeat(num_return_sequences + 1, 1)
+        return augmented_text, augmented_label
+
+    def training_step(self, batch, batch_idx):
+        sentences, labels = self.augment(batch)
+        loss, outputs = self.forward(sentences, labels, is_contrastive=True, mode="train")
+        self.log("train_loss", loss, prog_bar=True, logger=True)
+        return {"loss": loss, "predictions": outputs, "labels": labels.flatten()}
+
+    def validation_step(self, batch, batch_idx):
+        sentences, labels = self.augment(batch)
+        loss, outputs = self.forward(sentences, labels, is_training=False, is_contrastive=True, mode="valid")
+        self.log("val_loss", loss, prog_bar=True, logger=True)
+        return {"loss": loss, "predictions": outputs, "labels": labels.flatten()}
+
+    def test_step(self, batch, batch_idx):
+        sentences, labels = batch
+        loss, outputs = self.forward(sentences, labels, is_training=False, is_contrastive=False, mode="test")
+        self.log("test_loss", loss, prog_bar=True, logger=True)
+        return {"loss": loss, "predictions": outputs, "labels": labels.flatten()}
+
+    def evaluate(self, outputs):
+        labels = []
+        predictions = []
+        for output in outputs:
+            for out_labels in output["labels"]:
+                labels.append(out_labels)
+            for out_predictions in output["predictions"]:
+                predictions.append(out_predictions)
+        labels = torch.stack(labels).flatten().int()
+        predictions = torch.stack(predictions)
+        acc = self.accuracy(predictions, labels)
+        preci = self.preci(predictions, labels)
+        recall = self.recall(predictions, labels)
+        f1 = self.f1(predictions, labels)
+        return acc, preci, recall, f1
+
+    def training_epoch_end(self, outputs):
+        acc, preci, recall, f1 = self.evaluate(outputs)
+        self.log("train/acc", acc, prog_bar=True, logger=True, on_epoch=True)
+        self.log("train/preci", preci, prog_bar=True, logger=True, on_epoch=True)
+        self.log("train/recall", recall, prog_bar=True, logger=True, on_epoch=True)
+        self.log("train/f1", f1, prog_bar=True, logger=True, on_epoch=True)
+
+    def validation_epoch_end(self, outputs):
+        acc, preci, recall, f1 = self.evaluate(outputs)
+        self.log("validation/acc", acc, prog_bar=True, logger=True)
+        self.log("validation/preci", preci, prog_bar=True, logger=True)
+        self.log("validation/recall", recall, prog_bar=True, logger=True)
+        self.log("validation/f1", f1, prog_bar=True, logger=True)
+
+    def test_epoch_end(self, outputs):
+        acc, preci, recall, f1 = self.evaluate(outputs)
+        self.log("test/acc", acc, prog_bar=True, logger=True)
+        self.log("test/preci", preci, prog_bar=True, logger=True)
+        self.log("test/recall", recall, prog_bar=True, logger=True)
+        self.log("test/f1", f1, prog_bar=True, logger=True)
 
 
 if __name__ == "__main__":
