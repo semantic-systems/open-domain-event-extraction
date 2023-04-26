@@ -18,10 +18,11 @@ class Encoder(object):
         self.model = model
         self.tokenizer = tokenizer
 
-    def encode(self, sentences: List, normalize_embeddings=True) -> torch.Tensor:
-        encoded_input = self.tokenizer(sentences, padding=True, truncation=True, return_tensors='pt')
-        model_output = self.model(**encoded_input)
-        sentence_embeddings = self.mean_pooling(model_output, encoded_input['attention_mask'])
+    def encode(self, sentences: List, normalize_embeddings=True, device=None) -> torch.Tensor:
+        encoded_input = self.tokenizer.batch_encode_plus(sentences, padding=True, truncation=True, return_attention_mask=True, return_tensors='pt', return_token_type_ids=False)
+        attention_mask = encoded_input["attention_mask"].to(device=device)
+        model_output = self.model(encoded_input["input_ids"].to(device=device), attention_mask)
+        sentence_embeddings = self.mean_pooling(model_output, attention_mask)
         embeddings = normalize(sentence_embeddings, p=2, dim=1) if normalize_embeddings else sentence_embeddings
         return embeddings
 
