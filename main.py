@@ -21,7 +21,7 @@ def main():
     temperature = 0.03#wandb.config.temperature
     alpha = 1 # wandb.config.alpha
 
-    data_module = TweetEvalDataModule()
+    data_module = TweetEvalDataModule(batch_size=512)
 
     model = SentenceTransformersModel(n_classes=20, lr=lr, temperature=temperature, alpha=alpha)
     # model = InstructorModel(n_classes=169, lr=lr, temperature=temperature, alpha=alpha)

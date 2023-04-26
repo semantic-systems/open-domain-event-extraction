@@ -100,36 +100,28 @@ class MavenDataModule(pl.LightningDataModule):
 
 class TweetEvalDataModule(pl.LightningDataModule):
 
-    def __init__(self):
+    def __init__(self, batch_size):
         super(TweetEvalDataModule, self).__init__()
+        self.batch_size = batch_size
         self.prepare_data_per_node = True
         self._log_hyperparams = True
 
     def prepare_data(self):
-
         self.train = load_dataset("tweet_eval", "emoji", split="train")
-        # self.train = self.train.map(
-        #     lambda e: tokenizer(e['text'], truncation=True, padding='max_length', return_tensors='pt', return_token_type_ids=False), batched=True)
         self.train.set_format(type='pandas', columns=['text', 'label'])
-
         self.validation = load_dataset("tweet_eval", "emoji", split="validation")
-        # self.validation = self.validation.map(
-        #     lambda e: tokenizer(e['text'], truncation=True, padding='max_length', return_tensors='pt', return_token_type_ids=False), batched=True)
         self.validation.set_format(type='pandas', columns=['text', 'label'])
-
         self.test = load_dataset("tweet_eval", "emoji", split="test")
-        # self.test = self.test.map(
-        #     lambda e: tokenizer(e['text'], truncation=True, padding='max_length', return_tensors='pt', return_token_type_ids=False), batched=True)
         self.test.set_format(type='pandas', columns=['text', 'label'])
 
     def setup(self, stage: Optional[str] = None):
         pass
 
     def train_dataloader(self):
-        return DataLoader(self.train, batch_size=128, num_workers=8)
+        return DataLoader(self.train, batch_size=self.batch_size, num_workers=8)
 
     def val_dataloader(self):
-        return DataLoader(self.validation, batch_size=128, num_workers=8)
+        return DataLoader(self.validation, batch_size=self.batch_size, num_workers=8)
 
     def test_dataloader(self):
-        return DataLoader(self.test, batch_size=128, num_workers=8)
+        return DataLoader(self.test, batch_size=self.batch_size, num_workers=8)
