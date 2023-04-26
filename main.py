@@ -32,11 +32,11 @@ def main():
         filename="emoji-best-checkpoint",
         save_top_k=1,
         verbose=True,
-        monitor="validation/contrastive loss",
+        monitor="valid/contrastive loss",
         mode="min"
     )
     logger = WandbLogger(project="single-label", name="miniLM/normalized/sweep")
-    early_stopping_callback = EarlyStopping(monitor='validation/contrastive loss', patience=15, mode="min", min_delta=0)
+    early_stopping_callback = EarlyStopping(monitor='valid/contrastive loss', patience=15, mode="min", min_delta=0)
 
     trainer = pl.Trainer(
         logger=logger,
