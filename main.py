@@ -5,7 +5,8 @@ import wandb
 from data_loader import MavenDataModule, TweetEvalDataModule
 from pytorch_lightning.callbacks import ModelCheckpoint, EarlyStopping
 from pytorch_lightning.loggers import WandbLogger
-from models.multi_label_classifier import MavenModel, InstructorModel, SentenceTransformersModel
+from models.multi_label_classifier import MavenModel, InstructorModel
+from models.single_label_classifier import SentenceTransformersModel
 
 
 def main():
@@ -40,11 +41,11 @@ def main():
     trainer = pl.Trainer(
         logger=logger,
         max_epochs=100,
-        callbacks=[early_stopping_callback],
-        # callbacks=[early_stopping_callback, checkpoint_callback],
-        # accelerator='gpu',
-        # devices=[0],
-        fast_dev_run=True
+        # callbacks=[early_stopping_callback],
+        callbacks=[early_stopping_callback, checkpoint_callback],
+        accelerator='gpu',
+        devices=[0],
+        fast_dev_run=False
     )
     trainer.fit(model, datamodule=data_module)
     # trainer.test(datamodule=data_module, ckpt_path='best')

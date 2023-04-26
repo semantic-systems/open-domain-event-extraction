@@ -2,8 +2,7 @@ from typing import List
 
 import numpy as np
 import pytorch_lightning as pl
-from transformers import RobertaModel, AdamW, get_linear_schedule_with_warmup, RobertaTokenizer, AutoTokenizer, \
-    AutoModel
+from transformers import RobertaModel, AdamW, get_linear_schedule_with_warmup, RobertaTokenizer
 import torch
 import torch.nn as nn
 import torchmetrics
@@ -13,10 +12,8 @@ import wandb
 from losses import HMLC, SupervisedContrastiveLoss
 from InstructorEmbedding import INSTRUCTOR
 from sklearn.cluster import KMeans, DBSCAN
-from sklearn.metrics import silhouette_score
 from sklearn.metrics.cluster import adjusted_mutual_info_score, adjusted_rand_score
 from sentence_transformers import SentenceTransformer
-import emoji
 
 
 NUM_AUGMENTATION = 2
@@ -423,7 +420,7 @@ class SentenceTransformersModel(InstructorModel):
 
     def forward(self, sentences: list, labels=None, is_training=True, is_contrastive=True, mode="train"):
         labels_on_cpu = labels.cpu().numpy().flatten()
-        labels = torch.tensor(labels, device=self.device, dtype=torch.float32)
+        labels = torch.tensor(labels, device=self.device, dtype=torch.float32, requires_grad=False)
         sentence_embeddings = self.lm.encode(sentences, normalize_embeddings=True, convert_to_tensor=True)
         embeddings_on_cpu = sentence_embeddings.cpu().numpy()
         cluster_labels = self.clustering_model.fit_predict(embeddings_on_cpu)
