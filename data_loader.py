@@ -126,10 +126,10 @@ class TweetEvalDataModule(pl.LightningDataModule):
         pass
 
     def train_dataloader(self):
-        return DataLoader(self.train, batch_size=32, num_workers=8)
+        return DataLoader(self.train, batch_size=128, num_workers=8)
 
     def val_dataloader(self):
-        return DataLoader(self.validation, batch_size=32, num_workers=8)
+        return DataLoader(self.validation, batch_size=128, num_workers=8)
 
     def test_dataloader(self):
-        return DataLoader(self.test, batch_size=32, num_workers=8)
+        return DataLoader(self.test, batch_size=128, num_workers=8)
