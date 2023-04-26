@@ -17,8 +17,8 @@ def main():
     pl.seed_everything(seed)
 
     wandb.init()
-    lr = 0.00001#wandb.config.lr
-    temperature = 0.03#wandb.config.temperature
+    lr = wandb.config.lr
+    temperature = wandb.config.temperature
     alpha = 1 # wandb.config.alpha
 
     data_module = TweetEvalDataModule(batch_size=512)
@@ -36,7 +36,7 @@ def main():
         mode="min"
     )
     logger = WandbLogger(project="single-label", name="miniLM/normalized/sweep")
-    early_stopping_callback = EarlyStopping(monitor='valid/contrastive loss', patience=15, mode="min", min_delta=0)
+    early_stopping_callback = EarlyStopping(monitor='valid/contrastive loss', patience=25, mode="min", min_delta=0)
 
     trainer = pl.Trainer(
         logger=logger,
@@ -45,7 +45,7 @@ def main():
         callbacks=[early_stopping_callback, checkpoint_callback],
         accelerator='gpu',
         devices=[0],
-        fast_dev_run=False
+        fast_dev_run=True
     )
     trainer.fit(model, datamodule=data_module)
     # trainer.test(datamodule=data_module, ckpt_path='best')
@@ -63,5 +63,5 @@ def main_sweep():
 
 
 if __name__ == "__main__":
-    # main_sweep()
-    main()
+    main_sweep()
+    # main()

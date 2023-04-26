@@ -62,7 +62,8 @@ class SentenceTransformersModel(pl.LightningModule):
         sentence_embeddings = self.lm.encode(sentences, normalize_embeddings=True, device=self.device)
         embeddings_on_cpu = sentence_embeddings.detach().cpu().numpy()
         cluster_labels = self.clustering_model.fit_predict(embeddings_on_cpu)
-        self.log(f"{mode}/num. clusters", int(len(set(cluster_labels))))
+        num_clusters = len(set(cluster_labels))
+        self.log(f"{mode}/num. clusters", num_clusters)
         # predictions = self.infer_labels_from_clusters(cluster_labels, labels_on_cpu)
 
         if is_contrastive and mode in ["train", "valid"]:
