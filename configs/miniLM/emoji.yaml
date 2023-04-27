@@ -3,17 +3,23 @@ metric:
   goal: minimize
   name: valid/contrastive loss
 parameters:
-  lr:
-    values:
-      - 1e-04
-      - 1e-05
-      - 1e-06
   temperature:
     values:
-      - 0.001
       - 0.005
       - 0.01
-      - 0.05
       - 0.1
       - 0.3
+  num_augmentation:
+    values:
+      - 0
+      - 1
+      - 2
+  min_cluster_size:
+    values:
+      - 2
+      - 5
+      - 10
+      - 15
+      - 20
+      - 40
 program: main.py

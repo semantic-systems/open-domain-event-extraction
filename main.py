@@ -18,10 +18,10 @@ def main():
 
     wandb.init()
     lr = 0.00001 # wandb.config.lr
-    temperature = 0.03 # wandb.config.temperature
+    temperature = wandb.config.temperature
     alpha = 1 # wandb.config.alpha
-    num_augmentation = 2
-    min_cluster_size = 10
+    num_augmentation = wandb.config.num_augmentation
+    min_cluster_size = wandb.config.min_cluster_size
     eps = 0.3
     min_samples = 10
 
@@ -42,15 +42,15 @@ def main():
         mode="min"
     )
     logger = WandbLogger(project="single-label", name="miniLM/normalized/sweep")
-    early_stopping_callback = EarlyStopping(monitor='valid/contrastive loss', patience=25, mode="min", min_delta=0)
+    early_stopping_callback = EarlyStopping(monitor='valid/contrastive loss', patience=10, mode="min", min_delta=0)
 
     trainer = pl.Trainer(
         logger=logger,
-        max_epochs=500,
+        max_epochs=150,
         # callbacks=[early_stopping_callback],
         callbacks=[early_stopping_callback, checkpoint_callback],
         accelerator='gpu',
-        devices=[0],
+        devices=[1],
         fast_dev_run=False
     )
     trainer.fit(model, datamodule=data_module)
@@ -64,10 +64,10 @@ def main_sweep():
         sweep_configuration = yaml.safe_load(f)
     wandb.login()
     sweep_id = wandb.sweep(sweep=sweep_configuration, project='single-label')
-    wandb.agent(sweep_id, function=main, count=1)
+    wandb.agent(sweep_id, function=main, count=72)
     wandb.finish()
 
 
 if __name__ == "__main__":
-    # main_sweep()
-    main()
+    main_sweep()
+    # main()
