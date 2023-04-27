@@ -10,6 +10,8 @@ import torchmetrics
 
 from losses import SupervisedContrastiveLoss
 from sklearn.cluster import KMeans, DBSCAN
+import hdbscan
+from sklearn.metrics import silhouette_score
 from sklearn.metrics.cluster import adjusted_mutual_info_score, adjusted_rand_score
 
 
@@ -35,8 +37,10 @@ class Encoder(object):
 
 
 class SentenceTransformersModel(pl.LightningModule):
-    def __init__(self, n_classes: int, lr: float, temperature: float, alpha: float):
+    def __init__(self, n_classes: int, lr: float, temperature: float, alpha: float, num_augmentation: int = 2, **kwargs):
         super().__init__()
+        self.kwargs = kwargs
+        self.num_augmentation = num_augmentation
         self.lr = lr
         self.temperature = temperature
         self.alpha = alpha
@@ -45,8 +49,8 @@ class SentenceTransformersModel(pl.LightningModule):
         self.lm = Encoder(self.model, self.tokenizer)
         # self.classifier = nn.Linear(384, n_classes, device=self.device, dtype=torch.float32)
         # self.loss = nn.CrossEntropyLoss()
-        self.num_clusters = 20
-        self.clustering_model = DBSCAN(eps=0.3, min_samples=3, metric="cosine")
+        self.num_clusters = n_classes
+        self.clustering_model = self.instantiate_clustering_model("hdbscan")
         self.accuracy = torchmetrics.classification.Accuracy(num_classes=n_classes, task="multiclass").to(self.device)
         self.preci = torchmetrics.classification.Precision(num_classes=n_classes, task="multiclass").to(self.device)
         self.recall = torchmetrics.classification.Recall(num_classes=n_classes, task="multiclass").to(self.device)
@@ -57,6 +61,18 @@ class SentenceTransformersModel(pl.LightningModule):
         self.validation_table = wandb.Table(columns=["sentences", "predictions", "labels"])
         self.save_hyperparameters()
 
+    def instantiate_clustering_model(self, name: str):
+        if name == "hdbscan":
+            min_cluster_size = self.kwargs.get('min_cluster_size', 10)
+            clustering_model = hdbscan.HDBSCAN(min_cluster_size=min_cluster_size)
+        elif name == "dbscan":
+            eps = self.kwargs.get('eps', 0.3)
+            min_samples = self.kwargs.get('min_samples', 3)
+            clustering_model = DBSCAN(eps=eps, min_samples=min_samples, metric="cosine")
+        else:
+            raise NotImplementedError
+        return clustering_model
+
     def forward(self, sentences: list, labels=None, is_training=True, is_contrastive=True, mode="train"):
         labels_on_cpu = labels.cpu().numpy().flatten()
         sentence_embeddings = self.lm.encode(sentences, normalize_embeddings=True, device=self.device)
@@ -64,7 +80,7 @@ class SentenceTransformersModel(pl.LightningModule):
         cluster_labels = self.clustering_model.fit_predict(embeddings_on_cpu)
         num_clusters = len(set(cluster_labels))
         self.log(f"{mode}/num. clusters", num_clusters)
-        # predictions = self.infer_labels_from_clusters(cluster_labels, labels_on_cpu)
+        predictions = self.get_predicted_cluster_labels(cluster_labels, labels_on_cpu, embeddings_on_cpu)
 
         if is_contrastive and mode in ["train", "valid"]:
             nmi = adjusted_mutual_info_score(cluster_labels, labels_on_cpu)
@@ -74,22 +90,9 @@ class SentenceTransformersModel(pl.LightningModule):
             multiview_sentences, multiview_labels = self.get_multiview_batch(sentence_embeddings, labels.flatten())
             contrastive_loss = self.contrastive_loss(multiview_sentences, multiview_labels)
             self.log(f"{mode}/contrastive loss", contrastive_loss)
-            return self.alpha*contrastive_loss
+            return self.alpha*contrastive_loss, predictions
         else:
-            # cluster_loss = silhouette_score(sentence_embeddings.cpu().numpy(), labels_np)
-            # self.log(f"{mode}/silhouette_score", cluster_loss)
-            # loss = self.loss(sentence_embeddings, labels.long())
-            # self.log(f"{mode}/ce loss", loss)
-            return 0
-
-    def infer_labels_from_clusters(self, cluster_labels, true_labels):
-        for i in set(cluster_labels):
-            index_for_cluster_i = np.argwhere(cluster_labels == i).flatten()
-            true_labels_for_cluster_i = true_labels[index_for_cluster_i].flatten()
-            unique_counts = np.unique(true_labels_for_cluster_i, return_counts=True)
-            max_label_count_for_cluster_i = max(unique_counts[1])
-            label_for_cluster_i = np.random.choice(np.argwhere(unique_counts[0] == max_label_count_for_cluster_i).flatten())
-        return []
+            return 0, predictions
 
     def get_multiview_batch(self, features, labels, dummy=False):
         # no augmentation
@@ -98,41 +101,41 @@ class SentenceTransformersModel(pl.LightningModule):
             contrastive_labels = labels
         else:
             multiview_shape = (
-                int(features.shape[0] / (2 + 1)),
-                2 + 1,
+                int(features.shape[0] / (self.num_augmentation + 1)),
+                self.num_augmentation + 1,
                 features.shape[-1]
             )
             contrastive_features = features.reshape(multiview_shape)
-            contrastive_labels = labels[:int(features.shape[0]/(2+1))]
+            contrastive_labels = labels[:int(features.shape[0]/(self.num_augmentation+1))]
         return contrastive_features, contrastive_labels
 
-    def augment(self, batch, num_return_sequences: int = 2):
+    def augment(self, batch):
         augmented_text = []
         sentences, labels = batch["text"], batch["label"]
         sentences = list(sentences)
-        for n in range(num_return_sequences+1):
+        for n in range(self.num_augmentation+1):
             augmented_text.extend(sentences)
         # label need to repeat n times + the original copy
-        augmented_label = labels.repeat(num_return_sequences + 1, 1)
+        augmented_label = labels.repeat(self.num_augmentation + 1, 1)
         return augmented_text, augmented_label
 
     def training_step(self, batch, batch_idx):
         sentences, labels = self.augment(batch)
-        loss = self.forward(sentences, labels, is_contrastive=True, mode="train")
+        loss, predictions = self.forward(sentences, labels, is_contrastive=True, mode="train")
         self.log("train_loss", loss, prog_bar=True, logger=True)
-        return {"loss": loss, "labels": labels.flatten()}
+        return {"loss": loss, "predictions": predictions, "labels": labels.flatten()}
 
     def validation_step(self, batch, batch_idx):
         sentences, labels = self.augment(batch)
-        loss = self.forward(sentences, labels, is_training=False, is_contrastive=True, mode="valid")
+        loss, predictions = self.forward(sentences, labels, is_training=False, is_contrastive=True, mode="valid")
         self.log("val_loss", loss, prog_bar=True, logger=True)
-        return {"loss": loss, "labels": labels.flatten()}
+        return {"loss": loss, "predictions": predictions, "labels": labels.flatten()}
 
     def test_step(self, batch, batch_idx):
         sentences, labels = batch
-        loss = self.forward(sentences, labels, is_training=False, is_contrastive=False, mode="test")
+        loss, predictions = self.forward(sentences, labels, is_training=False, is_contrastive=False, mode="test")
         self.log("test_loss", loss, prog_bar=True, logger=True)
-        return {"loss": loss, "labels": labels.flatten()}
+        return {"loss": loss, "predictions": predictions, "labels": labels.flatten()}
 
     def evaluate(self, outputs):
         labels = []
@@ -151,28 +154,25 @@ class SentenceTransformersModel(pl.LightningModule):
         return acc, preci, recall, f1
 
     def training_epoch_end(self, outputs):
-        # acc, preci, recall, f1 = self.evaluate(outputs)
-        # self.log("train/acc", acc, prog_bar=True, logger=True, on_epoch=True)
-        # self.log("train/preci", preci, prog_bar=True, logger=True, on_epoch=True)
-        # self.log("train/recall", recall, prog_bar=True, logger=True, on_epoch=True)
-        # self.log("train/f1", f1, prog_bar=True, logger=True, on_epoch=True)
-        pass
+        acc, preci, recall, f1 = self.evaluate(outputs)
+        self.log("train/acc", acc, prog_bar=True, logger=True, on_epoch=True)
+        self.log("train/preci", preci, prog_bar=True, logger=True, on_epoch=True)
+        self.log("train/recall", recall, prog_bar=True, logger=True, on_epoch=True)
+        self.log("train/f1", f1, prog_bar=True, logger=True, on_epoch=True)
 
     def validation_epoch_end(self, outputs):
-        # acc, preci, recall, f1 = self.evaluate(outputs)
-        # self.log("validation/acc", acc, prog_bar=True, logger=True)
-        # self.log("validation/preci", preci, prog_bar=True, logger=True)
-        # self.log("validation/recall", recall, prog_bar=True, logger=True)
-        # self.log("validation/f1", f1, prog_bar=True, logger=True)
-        pass
+        acc, preci, recall, f1 = self.evaluate(outputs)
+        self.log("validation/acc", acc, prog_bar=True, logger=True)
+        self.log("validation/preci", preci, prog_bar=True, logger=True)
+        self.log("validation/recall", recall, prog_bar=True, logger=True)
+        self.log("validation/f1", f1, prog_bar=True, logger=True)
 
     def test_epoch_end(self, outputs):
-        # acc, preci, recall, f1 = self.evaluate(outputs)
-        # self.log("test/acc", acc, prog_bar=True, logger=True)
-        # self.log("test/preci", preci, prog_bar=True, logger=True)
-        # self.log("test/recall", recall, prog_bar=True, logger=True)
-        # self.log("test/f1", f1, prog_bar=True, logger=True)
-        pass
+        acc, preci, recall, f1 = self.evaluate(outputs)
+        self.log("test/acc", acc, prog_bar=True, logger=True)
+        self.log("test/preci", preci, prog_bar=True, logger=True)
+        self.log("test/recall", recall, prog_bar=True, logger=True)
+        self.log("test/f1", f1, prog_bar=True, logger=True)
 
     def configure_optimizers(self):
         optimizer = AdamW(self.parameters(), lr=self.lr)
@@ -188,3 +188,51 @@ class SentenceTransformersModel(pl.LightningModule):
             #     interval='step'
             # )
         )
+
+    @staticmethod
+    def get_silhouette_score(label, cluster_indices, cluster_labels, true_labels, embeddings):
+        label_indices = [i for i in cluster_indices if true_labels[i] == label]
+        label_embeddings = embeddings[label_indices]
+
+        if len(label_embeddings) < 2:
+            return -1
+
+        return silhouette_score(embeddings, cluster_labels[label_indices], metric='cosine')
+
+    @staticmethod
+    def assign_label_to_cluster(cluster_labels, true_labels, embeddings):
+        cluster_indices = [i for i, label in enumerate(cluster_labels) if label == cluster]
+        label_counts = {}
+        for idx in cluster_indices:
+            label = true_labels[idx]
+            label_counts[label] = label_counts.get(label, 0) + 1
+
+        competing_labels = [label for label, count in label_counts.items() if count == max(label_counts.values())]
+
+        if len(competing_labels) == 1:
+            return competing_labels[0]
+
+        best_label = competing_labels[0]
+        best_silhouette_score = self.get_silhouette_score(best_label, cluster_indices, cluster_labels, embeddings)
+
+        for label in competing_labels[1:]:
+            current_silhouette_score = self.get_silhouette_score(label, cluster_indices, cluster_labels, embeddings)
+
+            if current_silhouette_score > best_silhouette_score:
+                best_label = label
+                best_silhouette_score = current_silhouette_score
+
+        return best_label
+
+    def get_predicted_cluster_labels(self, predicted_labels, true_labels, embeddings):
+        # Assign labels to clusters
+        unique_clusters = set(predicted_labels)
+        cluster_labels = {}
+
+        for cluster in unique_clusters:
+            if cluster == -1:  # Noise
+                continue
+            cluster_label = self.assign_label_to_cluster(predicted_labels, true_labels, embeddings)
+            cluster_labels[cluster] = cluster_label
+        predictions = [cluster_labels.get(predicted_label) for predicted_label in predicted_labels]
+        return predictions

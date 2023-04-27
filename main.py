@@ -17,13 +17,19 @@ def main():
     pl.seed_everything(seed)
 
     wandb.init()
-    lr = wandb.config.lr
-    temperature = wandb.config.temperature
+    lr = 0.00001 # wandb.config.lr
+    temperature = 0.03 # wandb.config.temperature
     alpha = 1 # wandb.config.alpha
+    num_augmentation = 2
+    min_cluster_size = 10
+    eps = 0.3
+    min_samples = 10
 
     data_module = TweetEvalDataModule(batch_size=512)
 
-    model = SentenceTransformersModel(n_classes=20, lr=lr, temperature=temperature, alpha=alpha)
+    model = SentenceTransformersModel(n_classes=20, lr=lr, temperature=temperature, alpha=alpha,
+                                      num_augmentation=num_augmentation, min_cluster_size=min_cluster_size,
+                                      eps=eps, min_samples=min_samples)
     # model = InstructorModel(n_classes=169, lr=lr, temperature=temperature, alpha=alpha)
     # model = MavenModel(n_classes=169, lr=lr, temperature=temperature, alpha=alpha)
 
@@ -41,8 +47,8 @@ def main():
     trainer = pl.Trainer(
         logger=logger,
         max_epochs=500,
-        # callbacks=[early_stopping_callback],
-        callbacks=[early_stopping_callback, checkpoint_callback],
+        callbacks=[early_stopping_callback],
+        # callbacks=[early_stopping_callback, checkpoint_callback],
         accelerator='gpu',
         devices=[0],
         fast_dev_run=True
@@ -63,5 +69,5 @@ def main_sweep():
 
 
 if __name__ == "__main__":
-    main_sweep()
-    # main()
+    # main_sweep()
+    main()
