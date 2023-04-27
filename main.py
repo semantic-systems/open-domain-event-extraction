@@ -47,11 +47,11 @@ def main():
     trainer = pl.Trainer(
         logger=logger,
         max_epochs=500,
-        callbacks=[early_stopping_callback],
-        # callbacks=[early_stopping_callback, checkpoint_callback],
+        # callbacks=[early_stopping_callback],
+        callbacks=[early_stopping_callback, checkpoint_callback],
         accelerator='gpu',
         devices=[0],
-        fast_dev_run=True
+        fast_dev_run=False
     )
     trainer.fit(model, datamodule=data_module)
     # trainer.test(datamodule=data_module, ckpt_path='best')

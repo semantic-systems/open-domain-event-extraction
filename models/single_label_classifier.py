@@ -7,6 +7,7 @@ from torch.nn.functional import normalize
 import wandb
 from transformers import AdamW, AutoTokenizer, AutoModel
 import torchmetrics
+from sklearn.metrics import pairwise_distances
 
 from losses import SupervisedContrastiveLoss
 from sklearn.cluster import KMeans, DBSCAN
@@ -123,28 +124,34 @@ class SentenceTransformersModel(pl.LightningModule):
         sentences, labels = self.augment(batch)
         loss, predictions = self.forward(sentences, labels, is_contrastive=True, mode="train")
         self.log("train_loss", loss, prog_bar=True, logger=True)
-        return {"loss": loss, "predictions": predictions, "labels": labels.flatten()}
+        predictions_placeholder = torch.tensor(predictions, device=self.device, dtype=torch.int) if predictions is not None else predictions
+        return {"loss": loss, "predictions": predictions_placeholder, "labels": labels.flatten()}
 
     def validation_step(self, batch, batch_idx):
         sentences, labels = self.augment(batch)
         loss, predictions = self.forward(sentences, labels, is_training=False, is_contrastive=True, mode="valid")
         self.log("val_loss", loss, prog_bar=True, logger=True)
-        return {"loss": loss, "predictions": predictions, "labels": labels.flatten()}
+        predictions_placeholder = torch.tensor(predictions, device=self.device, dtype=torch.int) if predictions is not None else predictions
+        return {"loss": loss, "predictions": predictions_placeholder, "labels": labels.flatten()}
 
     def test_step(self, batch, batch_idx):
         sentences, labels = batch
         loss, predictions = self.forward(sentences, labels, is_training=False, is_contrastive=False, mode="test")
         self.log("test_loss", loss, prog_bar=True, logger=True)
-        return {"loss": loss, "predictions": predictions, "labels": labels.flatten()}
+        predictions_placeholder = torch.tensor(predictions, device=self.device, dtype=torch.int) if predictions is not None else predictions
+        return {"loss": loss, "predictions": predictions_placeholder, "labels": labels.flatten()}
 
     def evaluate(self, outputs):
         labels = []
         predictions = []
-        for output in outputs:
-            for out_labels in output["labels"]:
-                labels.append(out_labels)
-            for out_predictions in output["predictions"]:
-                predictions.append(out_predictions)
+        try:
+            for output in outputs:
+                for out_labels in output["labels"]:
+                    labels.append(out_labels)
+                for out_predictions in output["predictions"]:
+                    predictions.append(out_predictions)
+        except TypeError:
+            return 0, 0, 0, 0
         labels = torch.stack(labels).flatten().int()
         predictions = torch.stack(predictions)
         acc = self.accuracy(predictions, labels)
@@ -189,17 +196,33 @@ class SentenceTransformersModel(pl.LightningModule):
             # )
         )
 
-    @staticmethod
-    def get_silhouette_score(label, cluster_indices, cluster_labels, true_labels, embeddings):
-        label_indices = [i for i in cluster_indices if true_labels[i] == label]
-        label_embeddings = embeddings[label_indices]
+    def get_predicted_cluster_labels(self, predicted_labels, true_labels, embeddings):
+        # Assign labels to noise points
+        noise_indices = np.where(predicted_labels == -1)[0]
+        cluster_indices = np.where(predicted_labels != -1)[0]
+        if len(cluster_indices) == 0:
+            return None
+        if len(cluster_indices) > 0:
+            cluster_centroids = np.array(
+                [np.mean(embeddings[predicted_labels == i], axis=0) for i in np.unique(predicted_labels) if i != -1])
+            noise_points = embeddings[noise_indices]
+            distances = pairwise_distances(noise_points, cluster_centroids)
+            closest_cluster_indices = np.argmin(distances, axis=1)
+            closest_cluster_labels = predicted_labels[cluster_indices][closest_cluster_indices]
+            predicted_labels[noise_indices] = closest_cluster_labels
 
-        if len(label_embeddings) < 2:
-            return -1
+        # Assign labels to clusters
+        unique_clusters = set(predicted_labels)
+        cluster_labels = {}
 
-        return silhouette_score(embeddings, cluster_labels[label_indices], metric='cosine')
+        for cluster in unique_clusters:
+            cluster_indices = [i for i, label in enumerate(predicted_labels) if label == cluster]
+            cluster_label = self.assign_label_to_cluster(cluster_indices, predicted_labels, true_labels, embeddings)
+            cluster_labels[cluster] = cluster_label
+        predictions = [cluster_labels.get(predicted_label) for predicted_label in predicted_labels]
+        return predictions
 
-    def assign_label_to_cluster(self, cluster_indices, cluster_labels, true_labels, embeddings):
+    def assign_label_to_cluster(self, cluster_indices, predicted_labels, true_labels, embeddings):
         label_counts = {}
         for idx in cluster_indices:
             label = true_labels[idx]
@@ -211,27 +234,18 @@ class SentenceTransformersModel(pl.LightningModule):
             return competing_labels[0]
 
         best_label = competing_labels[0]
-        best_silhouette_score = self.get_silhouette_score(best_label, cluster_indices, cluster_labels, true_labels, embeddings)
+        best_distance = np.inf
+        cluster_embeddings = embeddings[cluster_indices]
+        cluster_centroid = np.mean(cluster_embeddings, axis=0)
 
         for label in competing_labels[1:]:
-            current_silhouette_score = self.get_silhouette_score(label, cluster_indices, cluster_labels, true_labels, embeddings)
+            label_indices = [i for i in range(len(true_labels)) if true_labels[i] == label]
+            label_embeddings = embeddings[label_indices]
+            label_centroid = np.mean(label_embeddings, axis=0)
 
-            if current_silhouette_score > best_silhouette_score:
+            distance = pairwise_distances([cluster_centroid], [label_centroid], metric='cosine')[0][0]
+
+            if distance < best_distance:
                 best_label = label
-                best_silhouette_score = current_silhouette_score
-
+                best_distance = distance
         return best_label
-
-    def get_predicted_cluster_labels(self, predicted_labels, true_labels, embeddings):
-        # Assign labels to clusters
-        unique_clusters = set(predicted_labels)
-        cluster_labels = {}
-
-        for cluster in unique_clusters:
-            if cluster == -1:  # Noise
-                continue
-            cluster_indices = [i for i, label in enumerate(cluster_labels) if label == cluster]
-            cluster_label = self.assign_label_to_cluster(cluster_indices, predicted_labels, true_labels, embeddings)
-            cluster_labels[cluster] = cluster_label
-        predictions = [cluster_labels.get(predicted_label) for predicted_label in predicted_labels]
-        return predictions
