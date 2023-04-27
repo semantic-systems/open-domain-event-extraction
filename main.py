@@ -46,7 +46,7 @@ def main():
 
     trainer = pl.Trainer(
         logger=logger,
-        max_epochs=1,
+        max_epochs=150,
         # callbacks=[early_stopping_callback],
         callbacks=[early_stopping_callback, checkpoint_callback],
         accelerator='gpu',
