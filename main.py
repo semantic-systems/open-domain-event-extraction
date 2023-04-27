@@ -46,15 +46,15 @@ def main():
 
     trainer = pl.Trainer(
         logger=logger,
-        max_epochs=150,
+        max_epochs=1,
         # callbacks=[early_stopping_callback],
         callbacks=[early_stopping_callback, checkpoint_callback],
         accelerator='gpu',
-        devices=[1],
+        devices=[0],
         fast_dev_run=False
     )
     trainer.fit(model, datamodule=data_module)
-    # trainer.test(datamodule=data_module, ckpt_path='best')
+    trainer.test(datamodule=data_module, ckpt_path='best')
     torch.cuda.empty_cache()
     print("Jobs done.")
 

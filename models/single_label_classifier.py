@@ -135,7 +135,7 @@ class SentenceTransformersModel(pl.LightningModule):
         return {"loss": loss, "predictions": predictions_placeholder, "labels": labels.flatten()}
 
     def test_step(self, batch, batch_idx):
-        sentences, labels = batch
+        sentences, labels = batch["text"], batch["label"]
         loss, predictions = self.forward(sentences, labels, is_training=False, is_contrastive=False, mode="test")
         self.log("test_loss", loss, prog_bar=True, logger=True)
         predictions_placeholder = torch.tensor(predictions, device=self.device, dtype=torch.int) if predictions is not None else predictions
@@ -144,13 +144,14 @@ class SentenceTransformersModel(pl.LightningModule):
     def evaluate(self, outputs):
         labels = []
         predictions = []
-        try:
-            for output in outputs:
-                for out_labels in output["labels"]:
-                    labels.append(out_labels)
-                for out_predictions in output["predictions"]:
-                    predictions.append(out_predictions)
-        except TypeError:
+        for output in outputs:
+            if output["predictions"] is None:
+                continue
+            for out_labels in output["labels"]:
+                labels.append(out_labels)
+            for out_predictions in output["predictions"]:
+                predictions.append(out_predictions)
+        if len(labels) == 0:
             return 0, 0, 0, 0
         labels = torch.stack(labels).flatten().int()
         predictions = torch.stack(predictions)
