@@ -199,9 +199,7 @@ class SentenceTransformersModel(pl.LightningModule):
 
         return silhouette_score(embeddings, cluster_labels[label_indices], metric='cosine')
 
-    @staticmethod
-    def assign_label_to_cluster(cluster_labels, true_labels, embeddings):
-        cluster_indices = [i for i, label in enumerate(cluster_labels) if label == cluster]
+    def assign_label_to_cluster(self, cluster_indices, cluster_labels, true_labels, embeddings):
         label_counts = {}
         for idx in cluster_indices:
             label = true_labels[idx]
@@ -213,10 +211,10 @@ class SentenceTransformersModel(pl.LightningModule):
             return competing_labels[0]
 
         best_label = competing_labels[0]
-        best_silhouette_score = self.get_silhouette_score(best_label, cluster_indices, cluster_labels, embeddings)
+        best_silhouette_score = self.get_silhouette_score(best_label, cluster_indices, cluster_labels, true_labels, embeddings)
 
         for label in competing_labels[1:]:
-            current_silhouette_score = self.get_silhouette_score(label, cluster_indices, cluster_labels, embeddings)
+            current_silhouette_score = self.get_silhouette_score(label, cluster_indices, cluster_labels, true_labels, embeddings)
 
             if current_silhouette_score > best_silhouette_score:
                 best_label = label
@@ -232,7 +230,8 @@ class SentenceTransformersModel(pl.LightningModule):
         for cluster in unique_clusters:
             if cluster == -1:  # Noise
                 continue
-            cluster_label = self.assign_label_to_cluster(predicted_labels, true_labels, embeddings)
+            cluster_indices = [i for i, label in enumerate(cluster_labels) if label == cluster]
+            cluster_label = self.assign_label_to_cluster(cluster_indices, predicted_labels, true_labels, embeddings)
             cluster_labels[cluster] = cluster_label
         predictions = [cluster_labels.get(predicted_label) for predicted_label in predicted_labels]
         return predictions
