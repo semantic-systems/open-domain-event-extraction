@@ -1,0 +1,22 @@
+method: bayes
+metric:
+  goal: minimize
+  name: validation/f1
+parameters:
+  temperature:
+    values:
+      - 0.005
+      - 0.01
+      - 0.1
+      - 0.3
+  num_augmentation:
+    values:
+      - 0
+      - 1
+      - 2
+  lr:
+    values:
+      - 1e-04
+      - 1e-05
+      - 1e-06
+program: main.py

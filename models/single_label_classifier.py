@@ -1,6 +1,8 @@
+import json
 from typing import List
 
 import numpy as np
+import pandas as pd
 import pytorch_lightning as pl
 import torch
 from torch.nn.functional import normalize
@@ -8,6 +10,9 @@ import wandb
 from transformers import AdamW, AutoTokenizer, AutoModel
 import torchmetrics
 from sklearn.metrics import pairwise_distances
+import plotly.express as px
+from sklearn.decomposition import PCA
+import mpld3
 
 from losses import SupervisedContrastiveLoss
 from sklearn.cluster import KMeans, DBSCAN
@@ -51,7 +56,7 @@ class SentenceTransformersModel(pl.LightningModule):
         # self.classifier = nn.Linear(384, n_classes, device=self.device, dtype=torch.float32)
         # self.loss = nn.CrossEntropyLoss()
         self.num_clusters = n_classes
-        self.clustering_model = self.instantiate_clustering_model("hdbscan")
+        self.clustering_model = self.instantiate_clustering_model("kmeans")
         self.accuracy = torchmetrics.classification.Accuracy(num_classes=n_classes, task="multiclass").to(self.device)
         self.preci = torchmetrics.classification.Precision(num_classes=n_classes, task="multiclass").to(self.device)
         self.recall = torchmetrics.classification.Recall(num_classes=n_classes, task="multiclass").to(self.device)
@@ -60,7 +65,14 @@ class SentenceTransformersModel(pl.LightningModule):
         self.column = ["sentences", "predictions", "labels"]
         self.test_table = wandb.Table(columns=["sentences", "predictions", "labels"])
         self.validation_table = wandb.Table(columns=["sentences", "predictions", "labels"])
+        self.test_embedding_table = wandb.Table(columns=["clustering", "classification"])
+        self.validation_embedding_table = wandb.Table(columns=["clustering", "classification"])
+        self.index_label_map = None
+        self.pca = PCA(n_components=2)
         self.save_hyperparameters()
+
+    def reduce_with_PCA(self, features):
+        return self.pca.fit_transform(features)
 
     def instantiate_clustering_model(self, name: str):
         if name == "hdbscan":
@@ -70,6 +82,8 @@ class SentenceTransformersModel(pl.LightningModule):
             eps = self.kwargs.get('eps', 0.3)
             min_samples = self.kwargs.get('min_samples', 3)
             clustering_model = DBSCAN(eps=eps, min_samples=min_samples, metric="cosine")
+        elif name == "kmeans":
+            clustering_model = KMeans(n_clusters=self.num_clusters)
         else:
             raise NotImplementedError
         return clustering_model
@@ -82,8 +96,11 @@ class SentenceTransformersModel(pl.LightningModule):
         num_clusters = len(set(cluster_labels))
         self.log(f"{mode}/num. clusters", num_clusters)
         predictions = self.get_predicted_cluster_labels(cluster_labels, labels_on_cpu, embeddings_on_cpu)
+        self.get_pca_plot(embeddings_on_cpu, predictions, labels_on_cpu, sentences, cluster_labels)
 
         if is_contrastive and mode in ["train", "valid"]:
+            if mode == "valid":
+                self.validation_embedding_table.add_data([wandb.Html("fig_cluster.html")], [wandb.Html("fig_cls.html")])
             nmi = adjusted_mutual_info_score(cluster_labels, labels_on_cpu)
             self.log(f"{mode}/nmi", nmi)
             ari = adjusted_rand_score(cluster_labels, labels_on_cpu)
@@ -93,7 +110,52 @@ class SentenceTransformersModel(pl.LightningModule):
             self.log(f"{mode}/contrastive loss", contrastive_loss)
             return self.alpha*contrastive_loss, predictions
         else:
+            self.test_embedding_table.add_data([wandb.Html("fig_cluster.html")], [wandb.Html("fig_cls.html")])
             return 0, predictions
+
+    def get_pca_plot(self, embeddings, predictions, labels, sentences, cluster_labels):
+        reduced_embeddings = self.reduce_with_PCA(embeddings)
+        df = pd.DataFrame({"PC 1": reduced_embeddings[:, 0], "PC 2": reduced_embeddings[:, 1], "cluster label": cluster_labels,
+                           "predictions": predictions, "labels": labels, "sentences": sentences})
+
+        fig_cls = px.scatter(df, x="PC 1", y="PC 2", color="labels",
+                             hover_data=['sentences'])  # ,width=1000, height=700)
+        fig_cls.update_traces(marker_size=10)
+        fig_cluster = px.scatter(df, x="PC 1", y="PC 2", color="cluster label",
+                                 hover_data=['sentences'])  # , width=1065, height=700)
+        fig_cluster.update_traces(marker_size=10)
+
+        fig_cls.update_layout(
+            title="PCA Visualization with Classification Result",
+            title_x=0.5,
+            xaxis_title="Principal Component 1",
+            yaxis_title="Principal Component 2",
+            font=dict(
+                size=12
+            ),
+            hoverlabel=dict(
+                font_size=12,
+            ),
+            margin=dict(l=15, r=15, t=15, b=15),
+            paper_bgcolor="#E8E8DC"
+        )
+        fig_cluster.update_layout(
+            title="PCA Visualization with Clustering Result",
+            title_x=0.5,
+            xaxis_title="Principal Component 1",
+            yaxis_title="Principal Component 2",
+            font=dict(
+                size=12
+            ),
+            hoverlabel=dict(
+                font_size=12,
+            ),
+            margin=dict(l=15, r=15, t=15, b=15),
+            paper_bgcolor="#E8E8DC"
+        )
+        fig_cls.write_html("fig_cls.html")
+        fig_cluster.write_html("fig_cluster.html")
+        # return fig_cls, fig_cluster
 
     def get_multiview_batch(self, features, labels, dummy=False):
         # no augmentation
@@ -132,6 +194,10 @@ class SentenceTransformersModel(pl.LightningModule):
         loss, predictions = self.forward(sentences, labels, is_training=False, is_contrastive=True, mode="valid")
         self.log("val_loss", loss, prog_bar=True, logger=True)
         predictions_placeholder = torch.tensor(predictions, device=self.device, dtype=torch.int) if predictions is not None else predictions
+        data = [[s, pred, label] for s, pred, label in
+                list(zip(sentences, self.get_label_in_string(predictions_placeholder), self.get_label_in_string(labels.flatten())))]
+        for step in data:
+            self.validation_table.add_data(*step)
         return {"loss": loss, "predictions": predictions_placeholder, "labels": labels.flatten()}
 
     def test_step(self, batch, batch_idx):
@@ -139,7 +205,21 @@ class SentenceTransformersModel(pl.LightningModule):
         loss, predictions = self.forward(sentences, labels, is_training=False, is_contrastive=False, mode="test")
         self.log("test_loss", loss, prog_bar=True, logger=True)
         predictions_placeholder = torch.tensor(predictions, device=self.device, dtype=torch.int) if predictions is not None else predictions
+        data = [[s, pred, label] for s, pred, label in
+                list(zip(sentences, self.get_label_in_string(predictions_placeholder, len(sentences)),
+                         self.get_label_in_string(labels.flatten())))]
+        for step in data:
+            self.test_table.add_data(*step)
         return {"loss": loss, "predictions": predictions_placeholder, "labels": labels.flatten()}
+
+    def get_label_in_string(self, predictions, count = 0):
+        if predictions is None:
+            return ["oos"] * count
+        if self.index_label_map is None:
+            label_map_file = "./index_label_maps/emotion.json"
+            with open(label_map_file, 'r') as f:
+                self.index_label_map = json.load(f)
+        return [self.index_label_map[str(pred.item())] for pred in predictions]
 
     def evaluate(self, outputs):
         labels = []
@@ -174,6 +254,8 @@ class SentenceTransformersModel(pl.LightningModule):
         self.log("validation/preci", preci, prog_bar=True, logger=True)
         self.log("validation/recall", recall, prog_bar=True, logger=True)
         self.log("validation/f1", f1, prog_bar=True, logger=True)
+        wandb.log({"validation/result_table": self.validation_table})
+        wandb.log({"validation/embedding_table": self.validation_embedding_table})
 
     def test_epoch_end(self, outputs):
         acc, preci, recall, f1 = self.evaluate(outputs)
@@ -181,6 +263,8 @@ class SentenceTransformersModel(pl.LightningModule):
         self.log("test/preci", preci, prog_bar=True, logger=True)
         self.log("test/recall", recall, prog_bar=True, logger=True)
         self.log("test/f1", f1, prog_bar=True, logger=True)
+        wandb.log({"test/result_table": self.test_table})
+        wandb.log({"test/embedding_table": self.test_embedding_table})
 
     def configure_optimizers(self):
         optimizer = AdamW(self.parameters(), lr=self.lr)
@@ -199,18 +283,18 @@ class SentenceTransformersModel(pl.LightningModule):
 
     def get_predicted_cluster_labels(self, predicted_labels, true_labels, embeddings):
         # Assign labels to noise points
-        noise_indices = np.where(predicted_labels == -1)[0]
-        cluster_indices = np.where(predicted_labels != -1)[0]
-        if len(cluster_indices) == 0:
-            return None
-        if len(cluster_indices) > 0:
-            cluster_centroids = np.array(
-                [np.mean(embeddings[predicted_labels == i], axis=0) for i in np.unique(predicted_labels) if i != -1])
-            noise_points = embeddings[noise_indices]
-            distances = pairwise_distances(noise_points, cluster_centroids)
-            closest_cluster_indices = np.argmin(distances, axis=1)
-            closest_cluster_labels = predicted_labels[cluster_indices][closest_cluster_indices]
-            predicted_labels[noise_indices] = closest_cluster_labels
+        # noise_indices = np.where(predicted_labels == -1)[0]
+        # cluster_indices = np.where(predicted_labels != -1)[0]
+        # if len(cluster_indices) == 0:
+        #     return None
+        # if len(cluster_indices) > 0:
+        #     cluster_centroids = np.array(
+        #         [np.mean(embeddings[predicted_labels == i], axis=0) for i in np.unique(predicted_labels) if i != -1])
+        #     noise_points = embeddings[noise_indices]
+        #     distances = pairwise_distances(noise_points, cluster_centroids)
+        #     closest_cluster_indices = np.argmin(distances, axis=1)
+        #     closest_cluster_labels = predicted_labels[cluster_indices][closest_cluster_indices]
+        #     predicted_labels[noise_indices] = closest_cluster_labels
 
         # Assign labels to clusters
         unique_clusters = set(predicted_labels)

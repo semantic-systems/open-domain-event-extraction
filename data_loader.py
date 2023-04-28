@@ -44,7 +44,7 @@ class MavenMultiLabelClassificationDataset(Dataset):
         if dtype is None:
             return pd.DataFrame(multihot_vectors, columns=label_set)
 
-        label_map_file = "./index_label_map.json"
+        label_map_file = "./maven.json"
         if not Path(label_map_file).exists():
             with open(label_map_file, 'w') as f:
                 json.dump(label_map, f)
@@ -107,11 +107,11 @@ class TweetEvalDataModule(pl.LightningDataModule):
         self._log_hyperparams = True
 
     def prepare_data(self):
-        self.train = load_dataset("tweet_eval", "emoji", split="train")
+        self.train = load_dataset("tweet_eval", "emotion", split="train")
         self.train.set_format(type='pandas', columns=['text', 'label'])
-        self.validation = load_dataset("tweet_eval", "emoji", split="validation")
+        self.validation = load_dataset("tweet_eval", "emotion", split="validation")
         self.validation.set_format(type='pandas', columns=['text', 'label'])
-        self.test = load_dataset("tweet_eval", "emoji", split="test")
+        self.test = load_dataset("tweet_eval", "emotion", split="test")
         self.test.set_format(type='pandas', columns=['text', 'label'])
 
     def setup(self, stage: Optional[str] = None):

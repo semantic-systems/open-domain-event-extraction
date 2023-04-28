@@ -171,7 +171,7 @@ class MavenModel(pl.LightningModule):
         wandb.log({"test/table": self.test_table})
 
     def get_event_type(self, outputs):
-        label_map_file = "./index_label_map.json"
+        label_map_file = "./index_label_maps/maven.json"
         with open(label_map_file, 'r') as f:
             index_label_map = json.load(f)
         labels_indices = [output.nonzero(as_tuple=True) for output in outputs]
@@ -372,7 +372,7 @@ class InstructorModel(pl.LightningModule):
         wandb.log({"test/table": self.test_table})
 
     def get_event_type(self, outputs):
-        label_map_file = "./index_label_map.json"
+        label_map_file = "./index_label_maps/maven.json"
         with open(label_map_file, 'r') as f:
             index_label_map = json.load(f)
         labels_indices = [output.nonzero(as_tuple=True) for output in outputs]
