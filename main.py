@@ -42,19 +42,19 @@ def main():
         mode="min"
     )
     logger = WandbLogger(project="single-label/emotion/normalized", name="miniLM/normalized/sweep")
-    early_stopping_callback = EarlyStopping(monitor='valid/contrastive loss', patience=10, mode="min", min_delta=0)
+    early_stopping_callback = EarlyStopping(monitor='valid/contrastive loss', patience=15, mode="min", min_delta=0)
 
     trainer = pl.Trainer(
         logger=logger,
-        max_epochs=10,
+        max_epochs=200,
         # callbacks=[early_stopping_callback],
         callbacks=[early_stopping_callback, checkpoint_callback],
         accelerator='gpu',
-        devices=[0],
+        devices=[0, 1],
         fast_dev_run=False
     )
     trainer.fit(model, datamodule=data_module)
-    # trainer.test(datamodule=data_module, ckpt_path='best')
+    trainer.test(datamodule=data_module, ckpt_path='best')
     torch.cuda.empty_cache()
     print("Jobs done.")
 
@@ -63,7 +63,7 @@ def main_sweep():
     with open("configs/miniLM/emotion.yaml", "r") as f:
         sweep_configuration = yaml.safe_load(f)
     wandb.login()
-    sweep_id = wandb.sweep(sweep=sweep_configuration, project='single-label')
+    sweep_id = wandb.sweep(sweep=sweep_configuration, project='when sb meets gmms')
     wandb.agent(sweep_id, function=main, count=36)
     wandb.finish()
 
