@@ -57,10 +57,10 @@ class SentenceTransformersModel(pl.LightningModule):
         # self.loss = nn.CrossEntropyLoss()
         self.num_clusters = n_classes
         self.clustering_model = self.instantiate_clustering_model("kmeans")
-        self.accuracy = torchmetrics.classification.Accuracy(num_classes=n_classes, task="multiclass").to(self.device)
-        self.preci = torchmetrics.classification.Precision(num_classes=n_classes, task="multiclass").to(self.device)
-        self.recall = torchmetrics.classification.Recall(num_classes=n_classes, task="multiclass").to(self.device)
-        self.f1 = torchmetrics.classification.F1Score(num_classes=n_classes, task="multiclass").to(self.device)
+        self.accuracy = torchmetrics.classification.Accuracy(num_classes=n_classes, task="multiclass", average='macro').to(self.device)
+        self.preci = torchmetrics.classification.Precision(num_classes=n_classes, task="multiclass", average='macro').to(self.device)
+        self.recall = torchmetrics.classification.Recall(num_classes=n_classes, task="multiclass", average='macro').to(self.device)
+        self.f1 = torchmetrics.classification.F1Score(num_classes=n_classes, task="multiclass", average='macro').to(self.device)
         self.contrastive_loss = SupervisedContrastiveLoss(temperature=self.temperature)
         self.column = ["sentences", "predictions", "labels"]
         self.test_table = wandb.Table(columns=["sentences", "predictions", "labels"])
@@ -90,7 +90,7 @@ class SentenceTransformersModel(pl.LightningModule):
 
     def forward(self, sentences: list, labels=None, is_training=True, is_contrastive=True, mode="train"):
         labels_on_cpu = labels.cpu().numpy().flatten()
-        sentence_embeddings = self.lm.encode(sentences, normalize_embeddings=True, device=self.device)
+        sentence_embeddings = self.lm.encode(sentences, normalize_embeddings=False, device=self.device)
         embeddings_on_cpu = sentence_embeddings.detach().cpu().numpy()
         cluster_labels = self.clustering_model.fit_predict(embeddings_on_cpu)
         num_clusters = len(set(cluster_labels))
