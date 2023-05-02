@@ -99,8 +99,6 @@ class SentenceTransformersModel(pl.LightningModule):
         self.get_pca_plot(embeddings_on_cpu, predictions, labels_on_cpu, sentences, cluster_labels)
 
         if is_contrastive and mode in ["train", "valid"]:
-            if mode == "valid":
-                self.validation_embedding_table.add_data([wandb.Html("fig_cluster.html")], [wandb.Html("fig_cls.html")])
             nmi = adjusted_mutual_info_score(cluster_labels, labels_on_cpu)
             self.log(f"{mode}/nmi", nmi)
             ari = adjusted_rand_score(cluster_labels, labels_on_cpu)
@@ -194,10 +192,6 @@ class SentenceTransformersModel(pl.LightningModule):
         loss, predictions = self.forward(sentences, labels, is_training=False, is_contrastive=True, mode="valid")
         self.log("val_loss", loss, prog_bar=True, logger=True)
         predictions_placeholder = torch.tensor(predictions, device=self.device, dtype=torch.int) if predictions is not None else predictions
-        data = [[s, pred, label] for s, pred, label in
-                list(zip(sentences, self.get_label_in_string(predictions_placeholder), self.get_label_in_string(labels.flatten())))]
-        for step in data:
-            self.validation_table.add_data(*step)
         return {"loss": loss, "predictions": predictions_placeholder, "labels": labels.flatten()}
 
     def test_step(self, batch, batch_idx):
@@ -254,8 +248,6 @@ class SentenceTransformersModel(pl.LightningModule):
         self.log("validation/preci", preci, prog_bar=True, logger=True)
         self.log("validation/recall", recall, prog_bar=True, logger=True)
         self.log("validation/f1", f1, prog_bar=True, logger=True)
-        wandb.log({"validation/result_table": self.validation_table})
-        wandb.log({"validation/embedding_table": self.validation_embedding_table})
 
     def test_epoch_end(self, outputs):
         acc, preci, recall, f1 = self.evaluate(outputs)
