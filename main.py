@@ -39,10 +39,10 @@ def main():
         save_top_k=1,
         verbose=True,
         monitor="validation/f1",
-        mode="min"
+        mode="max"
     )
     logger = WandbLogger(project="single-label/emotion/unnormalized", name="miniLM/unnormalized/sweep")
-    early_stopping_callback = EarlyStopping(monitor='valid/contrastive loss', patience=25, mode="min", min_delta=0)
+    early_stopping_callback = EarlyStopping(monitor='valid/contrastive loss', patience=15, mode="min", min_delta=0)
 
     trainer = pl.Trainer(
         logger=logger,
@@ -70,5 +70,5 @@ def main_sweep():
 
 
 if __name__ == "__main__":
-    # main_sweep()
-    main()
+    main_sweep()
+    # main()
