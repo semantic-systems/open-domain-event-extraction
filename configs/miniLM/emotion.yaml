@@ -22,7 +22,6 @@ parameters:
   num_augmentation:
     values:
       - 0
-      - 1
       - 2
   lr:
     values:

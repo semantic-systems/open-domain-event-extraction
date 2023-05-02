@@ -17,10 +17,10 @@ def main():
     pl.seed_everything(seed)
 
     wandb.init()
-    lr = 0.00001 #wandb.config.lr
-    temperature = 0.3 #wandb.config.temperature
+    lr = wandb.config.lr
+    temperature = wandb.config.temperature
     alpha = 1 # wandb.config.alpha
-    num_augmentation = 0 #wandb.config.num_augmentation
+    num_augmentation = wandb.config.num_augmentation
     min_cluster_size = 50#wandb.config.min_cluster_size
     eps = 0.3
     min_samples = 10
@@ -47,17 +47,16 @@ def main():
     trainer = pl.Trainer(
         logger=logger,
         max_epochs=300,
-        callbacks=[early_stopping_callback],
-        # callbacks=[early_stopping_callback, checkpoint_callback],
+        # callbacks=[early_stopping_callback],
+        callbacks=[early_stopping_callback, checkpoint_callback],
         accelerator='gpu',
         devices=[0],
-        fast_dev_run=True
+        fast_dev_run=False
     )
     trainer.fit(model, datamodule=data_module)
-    # trainer.test(datamodule=data_module, ckpt_path='best')
+    trainer.test(datamodule=data_module, ckpt_path='best')
     torch.cuda.empty_cache()
-    os.system('wandb sync --clean --clean-old-hours 0;')
-    os.system('find /tmp -type d -name "*wandb*" -exec rm -rf {} \;')
+    os.system('find /tmp -name "*wandb*" -delete;')
     print("Jobs done.")
 
 

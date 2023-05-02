@@ -83,7 +83,7 @@ class SentenceTransformersModel(pl.LightningModule):
             min_samples = self.kwargs.get('min_samples', 3)
             clustering_model = DBSCAN(eps=eps, min_samples=min_samples, metric="cosine")
         elif name == "kmeans":
-            clustering_model = KMeans(n_clusters=self.num_clusters)
+            clustering_model = KMeans(n_clusters=self.num_clusters, n_init=10)
         else:
             raise NotImplementedError
         return clustering_model
