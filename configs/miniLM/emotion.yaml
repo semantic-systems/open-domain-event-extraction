@@ -19,10 +19,6 @@ parameters:
       - 20
       - 30
       - 50
-  num_augmentation:
-    values:
-      - 0
-      - 2
   lr:
     values:
       - 1e-05

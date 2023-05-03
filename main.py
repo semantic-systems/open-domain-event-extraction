@@ -19,23 +19,17 @@ def main():
     wandb.init()
     lr = wandb.config.lr
     temperature = wandb.config.temperature
-    alpha = 1 # wandb.config.alpha
-    num_augmentation = wandb.config.num_augmentation
-    min_cluster_size = 50#wandb.config.min_cluster_size
-    eps = 0.3
-    min_samples = 10
+    num_augmentation = 0
 
     data_module = TweetEvalDataModule(batch_size=128)
 
-    model = SentenceTransformersModel(n_classes=4, lr=lr, temperature=temperature, alpha=alpha,
-                                      num_augmentation=num_augmentation, min_cluster_size=min_cluster_size,
-                                      eps=eps, min_samples=min_samples)
+    model = SentenceTransformersModel(n_classes=4, lr=lr, temperature=temperature, num_augmentation=num_augmentation)
     # model = InstructorModel(n_classes=169, lr=lr, temperature=temperature, alpha=alpha)
     # model = MavenModel(n_classes=169, lr=lr, temperature=temperature, alpha=alpha)
 
     checkpoint_callback = ModelCheckpoint(
         dirpath="checkpoints",
-        filename="emotion-best-checkpoint",
+        filename="emotion-best-checkpoint-norm",
         save_top_k=1,
         verbose=True,
         monitor="validation/f1",
@@ -50,13 +44,13 @@ def main():
         # callbacks=[early_stopping_callback],
         callbacks=[early_stopping_callback, checkpoint_callback],
         accelerator='gpu',
-        devices=[0],
+        devices=[1],
         fast_dev_run=False
     )
     trainer.fit(model, datamodule=data_module)
     trainer.test(datamodule=data_module, ckpt_path='best')
     torch.cuda.empty_cache()
-    os.system('find /tmp -name "*wandb*" -delete;')
+    # os.system('find /tmp -name "*wandb*" -delete;')
     print("Jobs done.")
 
 
@@ -64,8 +58,8 @@ def main_sweep():
     with open("configs/miniLM/emotion.yaml", "r") as f:
         sweep_configuration = yaml.safe_load(f)
     wandb.login()
-    sweep_id = wandb.sweep(sweep=sweep_configuration, project='when sb meets gmms abnormally')
-    wandb.agent(sweep_id, function=main, count=360)
+    sweep_id = wandb.sweep(sweep=sweep_configuration, project='when sb meets gmms')
+    wandb.agent(sweep_id, function=main, count=28)
     wandb.finish()
 
 

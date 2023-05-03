@@ -12,12 +12,9 @@ import torchmetrics
 from sklearn.metrics import pairwise_distances
 import plotly.express as px
 from sklearn.decomposition import PCA
-import mpld3
-
 from losses import SupervisedContrastiveLoss
 from sklearn.cluster import KMeans, DBSCAN
 import hdbscan
-from sklearn.metrics import silhouette_score
 from sklearn.metrics.cluster import adjusted_mutual_info_score, adjusted_rand_score
 
 
@@ -43,13 +40,12 @@ class Encoder(object):
 
 
 class SentenceTransformersModel(pl.LightningModule):
-    def __init__(self, n_classes: int, lr: float, temperature: float, alpha: float, num_augmentation: int = 2, **kwargs):
+    def __init__(self, n_classes: int, lr: float, temperature: float, num_augmentation: int = 2, **kwargs):
         super().__init__()
         self.kwargs = kwargs
         self.num_augmentation = num_augmentation
         self.lr = lr
         self.temperature = temperature
-        self.alpha = alpha
         self.tokenizer = AutoTokenizer.from_pretrained("sentence-transformers/all-MiniLM-L6-v2")
         self.model = AutoModel.from_pretrained("sentence-transformers/all-MiniLM-L6-v2")
         self.lm = Encoder(self.model, self.tokenizer)
@@ -106,7 +102,7 @@ class SentenceTransformersModel(pl.LightningModule):
             multiview_sentences, multiview_labels = self.get_multiview_batch(sentence_embeddings, labels.flatten())
             contrastive_loss = self.contrastive_loss(multiview_sentences, multiview_labels)
             self.log(f"{mode}/contrastive loss", contrastive_loss)
-            return self.alpha*contrastive_loss, predictions
+            return contrastive_loss, predictions
         else:
             self.test_embedding_table.add_data([wandb.Html("fig_cluster.html")], [wandb.Html("fig_cls.html")])
             return 0, predictions
