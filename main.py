@@ -59,7 +59,7 @@ def main_sweep():
         sweep_configuration = yaml.safe_load(f)
     wandb.login()
     sweep_id = wandb.sweep(sweep=sweep_configuration, project='when sb meets gmms')
-    wandb.agent(sweep_id, function=main, count=28)
+    wandb.agent(sweep_id, function=main, count=30)
     wandb.finish()
 
 

@@ -1,10 +1,11 @@
-method: bayes
+method: grid
 metric:
   goal: minimize
   name: validation/f1
 parameters:
   temperature:
     values:
+      - 0.01
       - 0.1
       - 0.3
       - 0.5
