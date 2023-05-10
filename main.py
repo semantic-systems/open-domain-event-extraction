@@ -44,7 +44,7 @@ def main():
         # callbacks=[early_stopping_callback],
         callbacks=[early_stopping_callback, checkpoint_callback],
         accelerator='gpu',
-        devices=[1],
+        devices=[0],
         fast_dev_run=False
     )
     trainer.fit(model, datamodule=data_module)
@@ -59,7 +59,7 @@ def main_sweep():
         sweep_configuration = yaml.safe_load(f)
     wandb.login()
     sweep_id = wandb.sweep(sweep=sweep_configuration, project='when sb meets gmms')
-    wandb.agent(sweep_id, function=main, count=30)
+    wandb.agent(sweep_id, function=main, count=46)
     wandb.finish()
 
 
